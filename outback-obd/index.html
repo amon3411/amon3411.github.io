@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Outback OBD Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE: professional shop instrument — quiet chrome, loud only for warnings
+   IDEA: a diagnostic scan tool's screen with a mechanic beside it
+   PICTURE: two live dials leading the dashboard, health rows like an inspection sheet
+   COLOUR/TYPE: white/graphite panels, check-engine orange accent; Barlow Condensed figures, Inter UI
+   LAYOUT: app bar → tab bar → content | chat panel (chat becomes a tab on phones) */
+:root{color-scheme:light dark;--bg:light-dark(#f3f4f1,#0e1012);--card:light-dark(#fff,#171a1d);--ink:light-dark(#14161a,#eceee9);--mute:light-dark(#646a71,#99a0a7);--line:light-dark(#e2e4df,#262a2e);--soft:light-dark(#f1f2ee,#202427);--acc:#ff5a1f;--acc2:light-dark(#d9440d,#ff7a45);--warn:#e8a317;--bad:#e0342b;--ok:light-dark(#1d8a4e,#4ccf86)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Inter,system-ui,sans-serif;overflow-x:clip;-webkit-font-smoothing:antialiased}
+.num{font-family:"Barlow Condensed",Inter,sans-serif;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+h1,h2,h3{margin:0}
+/* app bar */
+.bar{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+.barIn{max-width:1400px;margin:auto;display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:12px max(3vw,14px)}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:34px;height:34px;border-radius:9px;background:var(--acc);display:grid;place-items:center;flex:none}
+.brand h1{font:700 22px/1 "Barlow Condensed",sans-serif}
+.veh{display:block;border:0;background:transparent;color:var(--mute);font:13px Inter,sans-serif;padding:0;width:min(240px,60vw)}
+.pill{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:500;padding:5px 11px;border-radius:99px;background:var(--soft);white-space:nowrap}
+.pill i{width:8px;height:8px;border-radius:50%;background:var(--mute)}
+.pill.live i{background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 25%,transparent)}.pill.demo i{background:var(--warn)}.pill.log i{background:#3f86e0}
+.acts{display:flex;flex-wrap:wrap;gap:8px;margin-inline-start:auto}
+button,.btn{font:500 14px Inter,sans-serif;min-height:40px;padding:0 14px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap}
+button:hover,.btn:hover{background:var(--soft)}
+button:focus-visible,.btn:focus-within,input:focus-visible,select:focus-visible,textarea:focus-visible,.veh:focus{outline:2px solid var(--acc);outline-offset:2px}
+.pri{background:var(--acc);border-color:var(--acc);color:#fff}.pri:hover{background:var(--acc2)}
+button:disabled{opacity:.45;cursor:default}
+svg.i{width:18px;height:18px;flex:none}
+/* tabs */
+.tabs{max-width:1400px;margin:auto;display:flex;gap:4px;padding:0 max(3vw,14px);overflow-x:auto;scrollbar-width:none}
+.tabs button{flex:none;border:0;border-radius:0;background:none;min-height:44px;padding:0 12px;color:var(--mute);font-weight:600;border-bottom:2px solid transparent}
+.tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--acc)}
+.tabs .tChat{display:none}
+.alert{max-width:1400px;margin:12px auto 0;padding:0 max(3vw,14px);display:none}.alert.on{display:block}
+.alert div{padding:12px 16px;border-radius:10px;font-weight:600}.alert.bad div{background:var(--bad);color:#fff}.alert.warn div{background:var(--warn);color:#1a1200}
+.note{max-width:1400px;margin:12px auto 0;padding:0 max(3vw,14px);display:none}.note.on{display:block}
+.note div{padding:11px 14px;border-radius:10px;background:var(--card);border:1px solid var(--line);font-size:14px}
+/* layout */
+.wrap{display:grid;gap:16px;padding:16px max(3vw,14px) 48px;grid-template-columns:minmax(0,1fr);max-width:1400px;margin:auto}
+@media(min-width:1000px){.wrap{grid-template-columns:minmax(0,1.6fr) minmax(340px,1fr)}.chat{position:sticky;top:120px;height:calc(100vh - 136px)}}
+@media(max-width:999px){.tabs .tChat{display:inline-flex}.chat{display:none!important}body[data-tab=chat] .chat{display:flex!important}body[data-tab=chat] .pane{display:none}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px}
+.view{display:none}.view.on{display:block}
+.sec{padding:18px;margin-top:16px}.sec:first-child{margin-top:0}
+.hd{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.hd h2{font:600 16px Inter,sans-serif}.sub{font-size:13px;color:var(--mute)}
+/* dashboard */
+.dials{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.dial{padding:14px 12px 8px;text-align:center}.dial h2{font:600 13px Inter,sans-serif;color:var(--mute)}
+.dial svg{width:100%;height:auto;max-height:250px;display:block}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:12px;margin-top:16px}
+.tile{padding:12px 14px 10px}.tile h3{font:500 12.5px Inter,sans-serif;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .v{font-size:32px;line-height:1.1}.tile .u{font:500 13px Inter,sans-serif;color:var(--mute);margin-inline-start:4px}
+.tile svg{width:100%;height:28px;display:block;margin-top:4px}
+.empty{grid-column:1/-1;padding:26px;text-align:center;color:var(--mute)}
+.codes{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.codes li{display:flex;gap:12px;align-items:baseline;padding:10px 12px;border-radius:10px;background:var(--soft)}
+.codes b{flex:none;font:700 21px "Barlow Condensed",sans-serif;color:var(--acc);white-space:nowrap}
+.codes small,.small{color:var(--mute);font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}th{font-weight:600;color:var(--mute);font-size:12.5px}td.r,th.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+/* health */
+.checks{display:grid;gap:10px}
+.chk{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;padding:14px;border-radius:12px;border:1px solid var(--line);align-items:start}
+.dot{width:12px;height:12px;border-radius:50%;margin-top:4px;background:var(--mute)}
+.dot.ok{background:var(--ok)}.dot.warn{background:var(--warn)}.dot.bad{background:var(--bad)}
+.chk h3{font:600 15px Inter,sans-serif}.chk .st{font-size:13px;font-weight:600;white-space:nowrap}
+.chk .st.ok{color:var(--ok)}.chk .st.warn{color:#b07a00}.chk .st.bad{color:var(--bad)}
+:root[data-theme=dark] .chk .st.warn{color:var(--warn)}@media(prefers-color-scheme:dark){:root:not([data-theme=light]) .chk .st.warn{color:var(--warn)}}
+@media(max-width:600px){.chk{grid-template-columns:auto minmax(0,1fr)}.chk .st{grid-column:2;white-space:normal}}.chk p{grid-column:2/-1;margin:0;font-size:14px}.chk details{grid-column:2/-1;font-size:13.5px;color:var(--mute)}.chk summary{cursor:pointer;color:var(--ink);font-weight:500}
+.mons{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}
+.mon .small{white-space:nowrap}.mon{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:9px;background:var(--soft);font-size:13.5px}
+/* maintenance & trip */
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+label.f{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--mute)}
+input.in,select.in,textarea.in{font:16px Inter,sans-serif;min-height:42px;padding:8px 12px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%}
+textarea.in{min-height:70px;resize:vertical}
+.due{font-weight:600;white-space:nowrap}.due.bad{color:var(--bad)}.due.warn{color:#b07a00}.due.ok{color:var(--ok)}
+td input.in{min-height:36px;padding:4px 8px;max-width:110px;text-align:right}
+.tips{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.tip{padding:14px;border-radius:12px;background:var(--soft)}.tip h3{font:600 14.5px Inter,sans-serif;margin-bottom:4px}.tip p{margin:0;font-size:13.5px}
+.tip .k{display:inline-block;margin-top:8px;font-size:12px;font-weight:600;color:var(--acc2)}
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+.stat{padding:12px 14px;border-radius:12px;background:var(--soft)}.stat span{display:block;font-size:12.5px;color:var(--mute)}.stat b{font-size:28px}
+.big{font-size:clamp(44px,9vw,72px);line-height:1}
+/* chat */
+.chat{display:flex;flex-direction:column;min-height:520px;overflow:hidden}
+.chat header{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.chat header h2{font:700 20px "Barlow Condensed",sans-serif}
+.log{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;max-height:65vh}
+@media(min-width:1000px){.log{max-height:none}}
+.m{padding:10px 14px;border-radius:14px;max-width:90%;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14.5px}
+.m.u{align-self:flex-end;background:var(--acc);color:#fff;border-bottom-right-radius:4px}
+.m.a{align-self:flex-start;background:var(--soft);border-bottom-left-radius:4px}
+.m.sys{align-self:center;color:var(--mute);font-size:13px;text-align:center}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:0 16px 10px;scrollbar-width:none}.chips button{flex:none;font-size:13px;min-height:34px;border-radius:99px}
+.ask{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--line)}
+.ask input{flex:1;font:16px Inter,sans-serif;min-height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.icon{width:44px;min-height:44px;padding:0}.icon.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.hide{display:none!important}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;padding:16px;z-index:9}.ov.on{display:flex}
+.ov .card{padding:20px;max-width:420px}.ov p{margin:0 0 16px}.row{display:flex;flex-wrap:wrap;gap:8px}.ov .row{justify-content:flex-end}
+.help{font-size:13px;color:var(--mute);margin:16px 2px 0}
+@media(max-width:600px){.acts{margin-inline-start:0;width:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.skinSel{width:100%}.acts>*{padding:0 4px;font-size:13.5px}.acts svg{display:none}.tabs button{padding:0 10px}.tile .v{font-size:28px}.sec{padding:14px}
+ .mt thead{display:none}.mt tr{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;padding:12px 0;border-bottom:1px solid var(--line);align-items:end}.mt td{border:0;padding:0;text-align:left}.mt td:first-child{grid-column:1/-1;font-weight:600}.mt td[data-l]::before{content:attr(data-l);display:block;font-size:12px;color:var(--mute);margin-bottom:3px}.mt td input.in{max-width:none;text-align:left}.mt td:last-child button{width:100%}}
+
+.sheet{padding:20px;width:min(560px,100%);max-height:calc(100vh - 32px);overflow:auto}
+.sh{font:600 13px Inter,sans-serif;color:var(--mute);margin:18px 0 8px}
+.skins{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.sk{display:block;text-align:left;height:auto;min-height:0;padding:10px;border-radius:12px;white-space:normal}
+.sk[aria-pressed=true]{outline:2px solid var(--acc);outline-offset:1px}
+.sk .pv{height:54px;border-radius:8px;margin-bottom:8px;display:flex;align-items:flex-end;gap:5px;padding:7px;border:1px solid rgba(128,128,128,.25)}
+.sk .pv i{flex:1;border-radius:4px;height:60%}.sk b{display:block;font-size:14px}.sk small{display:block;color:var(--mute);font-size:12px;line-height:1.35;margin-top:2px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;flex-wrap:wrap}.seg button{border:0;border-radius:0}.seg button[aria-pressed=true]{background:var(--acc);color:#fff}
+@media(max-width:600px){.ov#set{align-items:flex-end;padding:0}.ov#set .sheet{border-radius:18px 18px 0 0;max-height:85vh}.acts .sl{display:none}.acts #bSet svg{display:block}}
+.sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:8px}
+.sr{display:grid;gap:5px;font-size:13px;font-weight:500;color:var(--mute)}
+.sw{display:flex;gap:10px;align-items:center;min-height:40px;font-size:14px;cursor:pointer}.sw input{width:20px;height:20px;accent-color:var(--acc);flex:none}
+.chipset{display:flex;flex-wrap:wrap;gap:6px}.chipset button{min-height:34px;border-radius:99px;font-size:13px;padding:0 12px}
+.chipset button[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:#fff}
+/* ===== SKINS ===== */
+.skinSel{font:500 14px Inter,sans-serif;min-height:40px;padding:0 10px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.ag svg{width:100%;height:auto;display:block;max-height:150px}
+.ctab{padding:0;overflow:auto;margin-top:16px}.ctab table{font-size:13px}.ctab td,.ctab th{padding:6px 10px}.ctab svg{width:90px;height:20px;display:block}
+.ctab tr:nth-child(even) td{background:var(--soft)}
+/* Analog: black, chrome bezels, red needles */
+:root[data-skin=analog]{color-scheme:dark;--bg:#050505;--card:#0c0c0c;--ink:#f4f4f4;--mute:#9b9b9b;--line:#232323;--soft:#191919;--acc:#e3241b;--acc2:#ff3b30}
+:root[data-skin=analog],:root[data-skin=analog] body{background:#050505}
+:root[data-skin=analog] .dial,:root[data-skin=analog] .ag{background:radial-gradient(circle at 50% 35%,#1d1d1d,#070707 75%);border:1px solid #2b2b2b;box-shadow:inset 0 1px 0 #3a3a3a,0 6px 18px rgba(0,0,0,.6)}
+:root[data-skin=analog] .tiles{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+:root[data-skin=analog] .ag h3{text-align:center}
+/* Tiles: dark slate, flat colored readouts */
+:root[data-skin=tiles]{color-scheme:dark;--bg:#0b1520;--card:#122232;--ink:#e9f2fb;--mute:#86a0b6;--line:#1c3246;--soft:#183044;--acc:#1fa8ee;--acc2:#4cc0ff}
+:root[data-skin=tiles] .card{border-radius:6px;border-color:transparent}
+:root[data-skin=tiles] .tiles{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+:root[data-skin=tiles] .tile{aspect-ratio:1;display:flex;flex-direction:column;justify-content:center;text-align:center;padding:10px}
+:root[data-skin=tiles] .tile .v{font-size:40px}:root[data-skin=tiles] .tile .u{display:block;margin:0}
+:root[data-skin=tiles] .tile:nth-child(6n+1) .v{color:#4cc0ff}:root[data-skin=tiles] .tile:nth-child(6n+2) .v{color:#5be08a}:root[data-skin=tiles] .tile:nth-child(6n+3) .v{color:#ffcf4a}
+:root[data-skin=tiles] .tile:nth-child(6n+4) .v{color:#ff7aa8}:root[data-skin=tiles] .tile:nth-child(6n+5) .v{color:#b48cff}:root[data-skin=tiles] .tile:nth-child(6n) .v{color:#ff9a4a}
+:root[data-skin=tiles] .tile svg{display:none}@media(max-width:600px){:root[data-skin=tiles] .tile{aspect-ratio:1.35}}:root[data-skin=tiles] button,:root[data-skin=tiles] .btn{border-radius:6px}
+/* Console: grey desktop diagnostic tool */
+:root[data-skin=console]{color-scheme:light;--bg:#ececec;--card:#fff;--ink:#141414;--mute:#585858;--line:#bdbdbd;--soft:#f2f4f7;--acc:#1b5fcc;--acc2:#154ea8;--ok:#1a7f37}
+:root[data-skin=console] body{font:13px/1.45 "Segoe UI",Tahoma,Inter,sans-serif}
+:root[data-skin=console] .card,:root[data-skin=console] button,:root[data-skin=console] .btn,:root[data-skin=console] .skinSel,:root[data-skin=console] .in,:root[data-skin=console] .codes li,:root[data-skin=console] .chk,:root[data-skin=console] .mon,:root[data-skin=console] .stat,:root[data-skin=console] .tip,:root[data-skin=console] .m{border-radius:2px}
+:root[data-skin=console] button,:root[data-skin=console] .btn{background:linear-gradient(#fdfdfd,#e4e4e4);border-color:#a9a9a9;min-height:34px;font-size:13px}
+:root[data-skin=console] .pri{background:linear-gradient(#2f74e0,#1b5fcc);color:#fff;border-color:#174ea6}
+:root[data-skin=console] .bar{background:linear-gradient(#fafafa,#e2e2e2)}
+:root[data-skin=console] .tabs{gap:2px;padding-top:4px}
+:root[data-skin=console] .tabs button{border:1px solid #bdbdbd;border-bottom:0;background:#e1e1e1;min-height:32px;border-radius:3px 3px 0 0;color:#333;font-weight:500}
+:root[data-skin=console] .tabs button[aria-selected=true]{background:#fff;color:#000}
+:root[data-skin=console] .dial h2,:root[data-skin=console] .hd h2{font:600 13px "Segoe UI",Tahoma,sans-serif}
+:root[data-skin=console] .ctab th{background:linear-gradient(#f7f7f7,#e3e3e3);color:#222;border-bottom:1px solid #bdbdbd;position:sticky;top:0}
+:root[data-skin=console] .logo{border-radius:3px;background:#1b5fcc}
+/* Clean: white & blue phone app */
+:root[data-skin=clean]{color-scheme:light;--bg:#f4f6f9;--card:#fff;--ink:#1a2330;--mute:#6a7686;--line:#e4e9ef;--soft:#eef3f8;--acc:#1570e8;--acc2:#0f5cc4}
+:root[data-skin=clean] .card{border:0;border-radius:20px;box-shadow:0 2px 10px rgba(20,40,70,.07)}
+:root[data-skin=clean] button,:root[data-skin=clean] .btn,:root[data-skin=clean] .skinSel{border-radius:99px}
+:root[data-skin=clean] .tile .v{color:var(--acc)}:root[data-skin=clean] .bar{border-bottom:0;box-shadow:0 1px 8px rgba(20,40,70,.06)}
+@media(max-width:600px){:root[data-skin=clean] .tabs{position:fixed;bottom:0;left:0;right:0;background:var(--card);box-shadow:0 -2px 12px rgba(20,40,70,.08);justify-content:space-around;padding:0 4px env(safe-area-inset-bottom);z-index:6}
+ :root[data-skin=clean] .tabs button{flex:1 1 0;min-width:0;padding:0 2px;border-radius:0;border-bottom:0;border-top:3px solid transparent;font-size:12px;overflow:hidden;text-overflow:ellipsis}:root[data-skin=clean] .tabs button[aria-selected=true]{border-top-color:var(--acc);color:var(--acc)}:root[data-skin=clean] body{padding-bottom:64px}}
+@media(prefers-reduced-motion:no-preference){.needle{transition:transform .45s cubic-bezier(.3,1.3,.5,1)}}
+</style></head><body data-tab="dash">
+<header class="bar">
+ <div class="barIn">
+  <div class="brand"><div class="logo"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M4 16a8 8 0 1 1 16 0"/><path d="M12 16l4-5"/></svg></div>
+   <div><h1>Outback OBD</h1><input class="veh" id="veh" aria-label="Vehicle" value="2001 Subaru Outback, automatic"></div></div>
+  <span class="pill" id="pill"><i></i><span id="pillT">Not connected</span></span>
+  <div class="acts">
+   <button id="bUsb"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v14M8 7l4-4 4 4M7 13v2a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-3"/><circle cx="12" cy="20" r="1.5"/></svg>USB</button>
+   <button id="bConn"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10-5 4V3l5 4L7 17"/></svg>Bluetooth</button>
+   <button id="bDemo">Demo</button>
+   <label class="btn" id="lImp">Import<input type="file" id="fLog" accept=".csv,.txt,text/csv" class="hide"></label>
+   <button id="bUnits" aria-label="Switch units">°F</button>
+   <button id="bSet" aria-label="Settings"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span class="sl">Settings</span></button>
+  </div>
+ </div>
+ <nav class="tabs" role="tablist">
+  <button role="tab" data-t="dash" aria-selected="true">Dashboard</button>
+  <button role="tab" data-t="health" aria-selected="false">Health</button>
+  <button role="tab" data-t="maint" aria-selected="false">Maintenance</button>
+  <button role="tab" data-t="trip" aria-selected="false">Trip &amp; log</button>
+  <button role="tab" data-t="chat" aria-selected="false" class="tChat">Ask Claude</button>
+ </nav>
+</header>
+<div class="alert" id="alert" role="alert"><div id="alertT"></div></div>
+<div class="note" id="note"><div id="noteT"></div></div>
+<main class="wrap">
+ <section class="pane">
+  <!-- DASHBOARD -->
+  <div class="view on" id="v-dash">
+   <div class="dials">
+    <div class="card dial"><h2 id="dT1">Engine speed</h2><svg id="dRpm" viewBox="0 0 200 170" role="img" aria-label="RPM dial"></svg></div>
+    <div class="card dial"><h2 id="dT2">Coolant temperature</h2><svg id="dEct" viewBox="0 0 200 170" role="img" aria-label="Coolant temperature dial"></svg></div>
+   </div>
+   <div class="tiles" id="tiles"></div>
+   <div class="card sec">
+    <div class="hd"><div><h2>Trouble codes</h2><div class="sub" id="milT">Read the codes to see check-engine status.</div></div>
+     <div class="row"><button id="bRead" disabled>Read codes</button><button id="bClear" disabled>Clear</button></div></div>
+    <ul class="codes" id="codes"><li><small>No codes read yet.</small></li></ul>
+    <div id="ff"></div>
+   </div>
+   <p class="help"><b>USB (OBDLink EX/SX):</b> on Android, connect through a USB-C OTG dongle, dismiss any “Open with” popup, and open this page in Chrome. On a computer use Chrome or Edge. <b>Bluetooth:</b> needs a Bluetooth LE adapter. If either is blocked inside Claude, use the standalone copy of this page; the Claude chat only works here.</p>
+  </div>
+  <!-- HEALTH -->
+  <div class="view" id="v-health">
+   <div class="card sec"><div class="hd"><div><h2>Health checks</h2><div class="sub">Built from this session’s data. Drive 10+ minutes, including some idle and steady cruising, for every check to fill in.</div></div></div>
+    <div class="checks" id="checks"></div></div>
+   <div class="card sec"><div class="hd"><div><h2>Emissions readiness</h2><div class="sub">Monitors must read “ready” to pass an emissions test. Clearing codes resets them.</div></div><button id="bMon" disabled>Refresh</button></div>
+    <div class="mons" id="mons"><div class="small">Connect to read monitor status.</div></div></div>
+  </div>
+  <!-- MAINTENANCE -->
+  <div class="view" id="v-maint">
+   <div class="card sec"><div class="hd"><h2>Your car</h2></div>
+    <div class="form">
+     <label class="f">Engine<select class="in" id="eng"><option value="h4">2.5L flat-4 (EJ25)</option><option value="h6">3.0L flat-6 (H6)</option></select></label>
+     <label class="f">Odometer (miles)<input class="in" id="odo" type="number" inputmode="numeric" placeholder="e.g. 186000"></label>
+     <label class="f" style="grid-column:1/-1">Notes for Claude<textarea class="in" id="notes"></textarea></label>
+    </div></div>
+   <div class="card sec"><div class="hd"><div><h2>Service schedule</h2><div class="sub">Suggested intervals for a high-mileage Outback. Edit them to match your manual. Saved in this browser.</div></div></div>
+    <table class="mt"><thead><tr><th>Item</th><th class="r">Every (mi)</th><th class="r">Last done</th><th class="r">Status</th><th></th></tr></thead><tbody id="mtb"></tbody></table></div>
+   <div class="card sec"><div class="hd"><div><h2>Tune-up tweaks</h2><div class="sub">What actually helps an older naturally aspirated Subaru, and what the app watches for each.</div></div></div>
+    <div class="tips" id="tips"></div></div>
+  </div>
+  <!-- TRIP -->
+  <div class="view" id="v-trip">
+   <div class="card sec"><div class="hd"><div><h2>This trip</h2><div class="sub" id="tripSub">Starts when data starts.</div></div><button id="bTripReset">Reset trip</button></div>
+    <div class="stats" id="stats"></div></div>
+   <div class="card sec"><div class="hd"><div><h2>0–60 mph timer</h2><div class="sub">Arm it, come to a stop, then accelerate. Accuracy is about ±1 s on older cars, which answer slowly.</div></div><button id="b060" class="pri">Arm</button></div>
+    <div class="row" style="align-items:baseline;gap:18px"><span class="big num" id="t060">—</span><span class="small" id="s060">Not armed</span></div></div>
+   <div class="card sec"><div class="hd"><div><h2>Data log</h2><div class="sub" id="logSub">0 samples recorded</div></div>
+     <div class="row"><button id="bSave">Save CSV</button><button id="bCopy">Copy CSV</button></div></div>
+    <p class="small" style="margin:0">Every reading is recorded while connected (last 2 hours kept). Share the CSV with a shop, or import it again later.</p></div>
+  </div>
+ </section>
+ <aside class="card chat">
+  <header><h2>Ask Claude</h2><button class="icon hide" id="bSpk" aria-label="Read answers aloud" title="Read answers aloud"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg></button></header>
+  <div class="log" id="log"><div class="m a">Hi! I can see everything this monitor sees: live readings, trouble codes, health checks, your trip and your service log. Ask me anything about how the car is running.</div></div>
+  <div class="chips" id="chips"></div>
+  <form class="ask" id="ask"><button type="button" class="icon hide" id="bMic" aria-label="Talk"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button><input id="q" placeholder="Ask about your car…" autocomplete="off"><button class="pri" id="bSend">Send</button></form>
+ </aside>
+</main>
+<div class="ov" id="set" role="dialog" aria-modal="true" aria-labelledby="setH"><div class="card sheet">
+ <div class="hd"><h2 id="setH" style="font-size:20px">Settings</h2><button id="bSetX" aria-label="Close settings">Done</button></div>
+ <h3 class="sh">Theme</h3><div class="skins" id="skins"></div>
+ <h3 class="sh">Units</h3><div class="seg" id="seg"><button data-u="imp">°F · mph · mpg</button><button data-u="met">°C · km/h · L/100km</button></div>
+ 
+ <h3 class="sh">Dashboard</h3>
+ <div class="sg"><label class="sr">Left dial<select class="in" data-c="dial1" id="cD1"></select></label><label class="sr">Right dial<select class="in" data-c="dial2" id="cD2"></select></label></div>
+ <label class="sw"><input type="checkbox" data-c="spark"> Show trend lines on tiles</label>
+ <div class="small" style="margin:12px 0 6px">Tiles to show (tap to hide or show)</div><div class="chipset" id="cTiles"></div>
+ <h3 class="sh">Alerts</h3>
+ <div class="sg"><label class="sr"><span>Coolant warning (<span class="tu">°F</span>)</span><input class="in" type="number" data-c="coolW" data-temp="1"></label>
+  <label class="sr"><span>Coolant critical (<span class="tu">°F</span>)</span><input class="in" type="number" data-c="coolC" data-temp="1"></label>
+  <label class="sr">Low charging voltage (V)<input class="in" type="number" step="0.1" data-c="voltLow"></label>
+  <label class="sr">Redline (rpm)<input class="in" type="number" step="100" data-c="redline"></label></div>
+ <label class="sw"><input type="checkbox" data-c="sound"> Beep when coolant goes critical</label>
+ <label class="sw"><input type="checkbox" data-c="vib"> Vibrate when coolant goes critical (Android)</label>
+ <h3 class="sh">Connection</h3>
+ <div class="sg"><label class="sr">OBD protocol<select class="in" data-c="proto"><option value="0">Automatic</option><option value="3">ISO 9141-2 (most 1996–2004 Subarus)</option><option value="4">ISO 14230 KWP, slow init</option><option value="5">ISO 14230 KWP, fast init</option><option value="6">CAN 11-bit 500k (2006+)</option></select></label></div>
+ <label class="sw"><input type="checkbox" data-c="fast"> Fast mode: only rpm, coolant, speed, load and airflow, for quicker updates</label>
+ <p class="small" style="margin:4px 0 0">Protocol changes apply on the next connect. Picking ISO 9141-2 skips the auto-search and connects faster on your Outback.</p>
+ <h3 class="sh">Fuel</h3>
+ <div class="sg"><label class="sr">Economy calibration (%)<input class="in" type="number" step="1" data-c="cal"></label>
+  <label class="sr"><span>Fuel price ($ per <span class="pu">gallon</span>)</span><input class="in" type="number" step="0.01" data-c="price"></label></div>
+ <p class="small" style="margin:4px 0 0">Airflow-based mpg is an estimate. If it reads 10% higher than your fill-up math, set calibration to 90.</p>
+ <h3 class="sh">Screen</h3>
+ <label class="sw"><input type="checkbox" data-c="awake"> Keep the screen on while showing live data</label><div class="small" id="awakeNote"></div>
+ <h3 class="sh">Data</h3>
+ <div class="row" style="justify-content:flex-start"><button id="cReset">Reset settings</button><button id="cClearM">Clear service history</button></div>
+ <p class="small" style="margin:16px 0 0">Settings are saved in this browser.</p>
+</div></div>
+<div class="ov" id="ov"><div class="card"><p><b>Clear all trouble codes?</b><br>This turns off the check-engine light, but also resets the emissions readiness monitors and the fuel-trim learning. Write the codes down first if you need them.</p><div class="row"><button id="bNo">Cancel</button><button class="pri" id="bYes">Clear codes</button></div></div></div>
+<script>
+{
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+let imperial=store.get('obd-units')!=='metric';
+const CFG0={dial1:'rpm',dial2:'ect',spark:true,hide:[],coolW:100,coolC:105,voltLow:12.8,redline:6000,sound:true,vib:true,proto:'0',fast:false,cal:100,price:3.5,awake:false};
+let cfg={...CFG0};try{Object.assign(cfg,JSON.parse(store.get('obd-cfg')||'{}'))}catch(e){}
+const saveCfg=()=>store.set('obd-cfg',JSON.stringify(cfg));
+let skin=store.get('obd-skin')||'studio';document.documentElement.dataset.skin=skin;
+const sum=a=>a.reduce((x,y)=>x+y,0),avg=a=>a.length?sum(a)/a.length:null,sd=a=>{const m=avg(a);return a.length>1?Math.sqrt(avg(a.map(v=>(v-m)**2))):0};
+
+/* ---------- sensors ---------- */
+const P={
+ rpm:{pid:'0C',n:2,label:'Engine speed',f:(a,b)=>(a*256+b)/4,unit:'rpm',dp:0},
+ ect:{pid:'05',label:'Coolant temp',f:a=>a-40,kind:'temp',dp:0},
+ spd:{pid:'0D',label:'Speed',f:a=>a,kind:'speed',dp:0},
+ mpg:{label:'Fuel economy',kind:'econ',dp:1},
+ load:{pid:'04',label:'Engine load',f:a=>a*100/255,unit:'%',dp:0},
+ tps:{pid:'11',label:'Throttle',f:a=>a*100/255,unit:'%',dp:0},
+ maf:{pid:'10',n:2,label:'Mass airflow',f:(a,b)=>(a*256+b)/100,unit:'g/s',dp:1},
+ map:{pid:'0B',label:'Manifold pressure',f:a=>a,unit:'kPa',dp:0},
+ iat:{pid:'0F',label:'Intake air temp',f:a=>a-40,kind:'temp',dp:0},
+ adv:{pid:'0E',label:'Timing advance',f:a=>a/2-64,unit:'°',dp:1},
+ stft1:{pid:'06',label:'Short trim B1',f:a=>(a-128)*100/128,unit:'%',dp:1},
+ ltft1:{pid:'07',label:'Long trim B1',f:a=>(a-128)*100/128,unit:'%',dp:1},
+ stft2:{pid:'08',label:'Short trim B2',f:a=>(a-128)*100/128,unit:'%',dp:1},
+ ltft2:{pid:'09',label:'Long trim B2',f:a=>(a-128)*100/128,unit:'%',dp:1},
+ o2:{pid:'14',n:2,label:'Front O2 (B1S1)',f:a=>a/200,unit:'V',dp:2},
+ o2b:{pid:'15',n:2,label:'Rear O2 (B1S2)',f:a=>a/200,unit:'V',dp:2},
+ o2c:{pid:'18',n:2,label:'Front O2 (B2S1)',f:a=>a/200,unit:'V',dp:2},
+ volt:{label:'Battery',unit:'V',dp:1},
+ baro:{pid:'33',label:'Barometric',f:a=>a,unit:'kPa',dp:0},
+ run:{pid:'1F',n:2,label:'Run time',f:(a,b)=>a*256+b,unit:'s',dp:0},
+ fsys:{pid:'03',n:2,label:'Fuel system',f:a=>a,dp:0}
+};
+const TILES=['spd','mpg','load','tps','maf','map','iat','adv','stft1','ltft1','stft2','ltft2','o2','o2b','o2c','volt','baro'];
+const FSYS={1:'Open loop (warming up)',2:'Closed loop',4:'Open loop (load/decel)',8:'Open loop (fault)',16:'Closed loop (sensor fault)'};
+const DESC={P0420:'Catalyst efficiency below threshold (bank 1)',P0430:'Catalyst efficiency below threshold (bank 2)',P0141:'O2 sensor heater circuit (B1S2)',P0171:'System too lean (bank 1)',P0172:'System too rich (bank 1)',P0174:'System too lean (bank 2)',P0175:'System too rich (bank 2)',P0128:'Coolant below thermostat temperature',P0115:'Coolant temp sensor circuit',P0116:'Coolant temp sensor range',P0117:'Coolant temp sensor low',P0118:'Coolant temp sensor high',P0125:'Slow to reach closed-loop temperature',P0130:'O2 sensor circuit (B1S1)',P0133:'O2 sensor slow response (B1S1)',P0135:'O2 sensor heater (B1S1)',P0300:'Random/multiple misfire',P0301:'Cylinder 1 misfire',P0302:'Cylinder 2 misfire',P0303:'Cylinder 3 misfire',P0304:'Cylinder 4 misfire',P0305:'Cylinder 5 misfire',P0306:'Cylinder 6 misfire',P0440:'EVAP system malfunction',P0441:'EVAP incorrect purge flow',P0442:'EVAP small leak',P0455:'EVAP large leak',P0456:'EVAP very small leak',P0457:'EVAP leak (fuel cap loose)',P0500:'Vehicle speed sensor',P0505:'Idle air control system',P0507:'Idle speed higher than expected',P0700:'Transmission control fault',P0740:'Torque converter clutch circuit',P0325:'Knock sensor circuit',P0335:'Crankshaft position sensor',P0340:'Camshaft position sensor',P0102:'MAF sensor low',P0103:'MAF sensor high',P0031:'O2 heater low (B1S1)',P0037:'O2 heater low (B1S2)',P0101:'MAF range/performance'};
+
+let cur={},hist={},rows=[],codes=null,pending=[],mon=null,ff=null,source='none';
+let trip={t0:null,last:null,km:0,fuelL:0,maxEct:null,maxRpm:0,topSpd:0};
+function push(k,v){if(v==null||!isFinite(v))return;cur[k]=v;(hist[k]??=[]).push(v);if(hist[k].length>150)hist[k].shift()}
+function disp(k,v){const p=P[k];if(v==null)return{t:'—',u:p.unit||''};
+ if(p.kind==='temp')return imperial?{t:(v*9/5+32).toFixed(0),u:'°F',n:v*9/5+32}:{t:v.toFixed(0),u:'°C',n:v};
+ if(p.kind==='speed')return imperial?{t:(v*0.621371).toFixed(0),u:'mph',n:v*0.621371}:{t:v.toFixed(0),u:'km/h',n:v};
+ if(p.kind==='econ')return imperial?{t:Math.min(99,v*2.35215).toFixed(1),u:'mpg',n:v*2.35215}:{t:(100/v).toFixed(1),u:'L/100km',n:100/v};
+ return{t:v.toFixed(p.dp),u:p.unit,n:v}}
+const fmtT=c=>disp('ect',c),fmtS=k=>disp('spd',k);
+
+/* record one sample of everything, integrate the trip */
+function record(now=Date.now(),quiet){
+ if(cur.maf!=null&&cur.spd!=null&&cur.spd>5){const lph=cur.maf/14.7*3600/745;push('mpg',cur.spd/lph*cfg.cal/100)}else delete cur.mpg;
+ if(!trip.t0)trip.t0=now;
+ if(trip.last){const dt=Math.min(5,(now-trip.last)/1000);if(cur.spd!=null)trip.km+=cur.spd*dt/3600;if(cur.maf!=null)trip.fuelL+=cur.maf/14.7/745*dt*100/cfg.cal}
+ trip.last=now;if(cur.ect!=null)trip.maxEct=Math.max(trip.maxEct??-99,cur.ect);trip.maxRpm=Math.max(trip.maxRpm,cur.rpm||0);trip.topSpd=Math.max(trip.topSpd,cur.spd||0);
+ rows.push({t:now,...cur});if(rows.length>7200)rows.shift();
+ z060(now);if(!quiet)render()}
+
+/* ---------- dials ---------- */
+const ang=f=>(225-270*f)*Math.PI/180,pt=(f,r)=>[100+r*Math.cos(ang(f)),100-r*Math.sin(ang(f))];
+function arc(f0,f1,r){const[a,b]=pt(f0,r),[c,d]=pt(f1,r);return`M${a.toFixed(1)} ${b.toFixed(1)}A${r} ${r} 0 ${(f1-f0)*270>180?1:0} 1 ${c.toFixed(1)} ${d.toFixed(1)}`}
+function dial(svg,{v,min,max,red,label,unit,lo,hi,num}){
+ const f=v==null?0:Math.max(0,Math.min(1,(v-min)/(max-min))),rf=(red-min)/(max-min),hot=v!=null&&v>=red,col=hot?'var(--bad)':'var(--ink)';
+ let ticks='';for(let i=0;i<=10;i++){const[a,b]=pt(i/10,71),[c,d]=pt(i/10,i%5?66:61);ticks+=`<line x1="${a}" y1="${b}" x2="${c}" y2="${d}" stroke="var(--mute)" stroke-width="${i%5?1:1.8}" opacity=".7"/>`}
+ const[lx,ly]=pt(0,80),[hx,hy]=pt(1,80);
+ if(skin==='analog'){let nums='',tk='';for(let i=0;i<=20;i++){const[a,b]=pt(i/20,84),[c,d]=pt(i/20,i%2?79:73);tk+=`<line x1="${a}" y1="${b}" x2="${c}" y2="${d}" stroke="${i/20>=rf?'#ff3b30':'#eee'}" stroke-width="${i%2?1:2.2}"/>`;
+   if(i%4===0&&i&&i<20){const[x,y]=pt(i/20,62);nums+=`<text x="${x.toFixed(1)}" y="${(y+4).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="700" fill="#eee">${esc(num?num(min+(max-min)*i/20):Math.round(min+(max-min)*i/20))}</text>`}}
+  svg.innerHTML=`<circle cx="100" cy="100" r="96" fill="none" stroke="url(#chrome)" stroke-width="5"/><defs><linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d8d8d8"/><stop offset=".5" stop-color="#555"/><stop offset="1" stop-color="#bbb"/></linearGradient></defs>${tk}${nums}
+  <g class="needle" style="transform-origin:100px 100px;transform:rotate(${(-135+270*f).toFixed(1)}deg)"><path d="M98 112 L100 22 L102 112 Z" fill="#ff2d20"/></g><circle cx="100" cy="100" r="8" fill="#222" stroke="#666"/>
+  <text x="100" y="146" text-anchor="middle" class="num" font-size="26" fill="${hot?'#ff3b30':'#fff'}">${esc(label)}</text><text x="100" y="162" text-anchor="middle" font-size="10" fill="#aaa">${esc(unit)}</text>`;return}
+ svg.innerHTML=`<path d="${arc(0,1,80)}" fill="none" stroke="var(--soft)" stroke-width="11" stroke-linecap="round"/>
+ ${rf<.999?`<path d="${arc(rf,1,80)}" fill="none" stroke="var(--bad)" stroke-width="11" stroke-linecap="round" opacity=".8"/>`:''}
+ ${f>0.002?`<path d="${arc(0,Math.min(f,rf),80)}" fill="none" stroke="var(--acc)" stroke-width="11" stroke-linecap="round"/>`:''}${ticks}
+ <g class="needle" style="transform-origin:100px 100px;transform:rotate(${(-135+270*f).toFixed(1)}deg)"><line x1="100" y1="110" x2="100" y2="38" stroke="${col}" stroke-width="2.6" stroke-linecap="round"/></g>
+ <circle cx="100" cy="100" r="5.5" fill="${col}"/>
+ <text x="100" y="141" text-anchor="middle" class="num" font-size="34" fill="${col}">${esc(label)}</text>
+ <text x="100" y="158" text-anchor="middle" font-size="11" fill="var(--mute)">${esc(unit)}</text>
+ <text x="${lx+4}" y="${ly+14}" font-size="10" fill="var(--mute)">${lo}</text><text x="${hx-4}" y="${hy+14}" text-anchor="end" font-size="10" fill="var(--mute)">${hi}</text>`}
+function rng(k){const I=imperial;return{spd:I?[0,120]:[0,200],mpg:I?[0,60]:[0,30],load:[0,100],tps:[0,100],maf:[0,150],map:[0,110],baro:[60,110],iat:I?[0,150]:[-20,65],adv:[-10,50],stft1:[-25,25],ltft1:[-25,25],stft2:[-25,25],ltft2:[-25,25],o2:[0,1.1],o2b:[0,1.1],o2c:[0,1.1],volt:[8,16]}[k]||[0,100]}
+function mini(k){const d=disp(k,cur[k]),[a,b]=rng(k),f=Math.max(0,Math.min(1,((d.n??a)-a)/(b-a))),q=(t,r)=>[60+r*Math.cos(ang(t)),60-r*Math.sin(ang(t))];let tk='';
+ for(let i=0;i<=10;i++){const[x1,y1]=q(i/10,50),[x2,y2]=q(i/10,i%5?46:42);tk+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#ddd" stroke-width="${i%5?1:2}"/>`}
+ const lab=(i,t)=>{const[x,y]=q(i,33);return`<text x="${x.toFixed(1)}" y="${(y+3).toFixed(1)}" text-anchor="middle" font-size="8" fill="#aaa">${t}</text>`};
+ return`<svg viewBox="0 0 120 112"><circle cx="60" cy="60" r="55" fill="none" stroke="url(#chrome2)" stroke-width="3"/><defs><linearGradient id="chrome2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d0d0d0"/><stop offset=".5" stop-color="#4a4a4a"/><stop offset="1" stop-color="#aaa"/></linearGradient></defs>${tk}
+ <g class="needle" style="transform-origin:60px 60px;transform:rotate(${(-135+270*f).toFixed(1)}deg)"><path d="M58.6 66 L60 16 L61.4 66 Z" fill="#ff2d20"/></g><circle cx="60" cy="60" r="5" fill="#222" stroke="#666"/>
+ <text x="60" y="94" text-anchor="middle" class="num" font-size="18" fill="#fff">${esc(d.t)}</text><text x="60" y="104" text-anchor="middle" font-size="8" fill="#aaa">${esc(d.u)}</text></svg>`}
+function spark(a){if(!cfg.spark||!a||a.length<2)return'';const s=a.slice(-60),mn=Math.min(...s),mx=Math.max(...s),r=mx-mn||1;
+ return`<svg viewBox="0 0 100 28" preserveAspectRatio="none"><polyline fill="none" stroke="var(--acc)" stroke-width="1.5" vector-effect="non-scaling-stroke" points="${s.map((v,i)=>`${(i/(s.length-1)*100).toFixed(1)},${(26-(v-mn)/r*24).toFixed(1)}`).join(' ')}"/></svg>`}
+
+/* ---------- health checks ---------- */
+function health(){const warm=rows.filter(r=>r.ect>=80),idle=warm.filter(r=>r.rpm>300&&r.rpm<1100&&(r.spd??0)<2),cruise=warm.filter(r=>r.spd>=50&&(r.tps??0)<45);
+ const out=[],add=(t,s,v,p,tip)=>out.push({t,s,v,p,tip}),mins=rows.length?(rows.at(-1).t-rows[0].t)/60000:0,c=k=>rows.some(r=>r[k]!=null);
+ // cooling
+ if(!c('ect'))add('Cooling system & head gaskets','na','No data','Needs coolant temperature.');
+ else{const mx=Math.max(...rows.filter(r=>r.ect!=null).map(r=>r.ect)),swing=sd(warm.map(r=>r.ect)),m=fmtT(mx);
+  if(mx>=cfg.coolC)add('Cooling system & head gaskets','bad',`Peak ${m.t}${m.u}`,'The engine overheated this session. Stop driving when it runs this hot: overheating is what finishes off EJ25 head gaskets.',tipCool);
+  else if(mx>=cfg.coolW||swing>4)add('Cooling system & head gaskets','warn',mx>=cfg.coolW?`Peak ${m.t}${m.u}`:'Temperature swinging',mx>=100?'Running warmer than normal (about 85–95°C / 185–203°F).':'Once warm, coolant temperature is moving around more than it should. That points to low coolant, air in the system, a sticking thermostat, or head-gasket gases.',tipCool);
+  else add('Cooling system & head gaskets','ok',`Peak ${m.t}${m.u}`,warm.length?'Steady at operating temperature.':'No overheating so far.',tipCool)}
+ // thermostat
+ if(c('ect')){const first=rows.find(r=>r.ect>=80);
+  if(first)add('Warm-up & thermostat','ok',first===rows[0]?'Already warm':`Warm in ${((first.t-rows[0].t)/60000).toFixed(1)} min`,first===rows[0]?'Engine was already at operating temperature when data started. Start a log from cold to time the warm-up.':'Reached operating temperature normally.');
+  else if(mins>=10&&(cur.ect??0)<75)add('Warm-up & thermostat','warn',`${fmtT(cur.ect).t}${fmtT(cur.ect).u} after ${mins.toFixed(0)} min`,'Still not warm after 10+ minutes. A thermostat stuck open is the usual cause (code P0128). It costs fuel economy and heater output.');
+  else add('Warm-up & thermostat','na','Warming up','Keep driving until it reaches about 80°C / 176°F.')}
+ // fuel trims
+ for(const b of['1','2']){const k1='stft'+b,k2='ltft'+b;if(!c(k2))continue;
+  const tot=r=>(r[k1]??0)+(r[k2]??0),ti=avg(idle.filter(r=>r[k2]!=null).map(tot)),tc=avg(cruise.filter(r=>r[k2]!=null).map(tot)),vals=[ti,tc].filter(v=>v!=null);
+  if(!vals.length){add(`Fuel trims, bank ${b}`,'na','Needs warm idle & cruise','Drive warm, idle a minute and cruise steadily.',tipTrim);continue}
+  const w=Math.max(...vals.map(Math.abs)),f=v=>v==null?'—':(v>0?'+':'')+v.toFixed(1)+'%';
+  let p=w<=10?'Fuel trims are within the normal ±10% range.':ti!=null&&tc!=null&&ti>10&&tc<ti-5?'Lean at idle but better at speed: the classic sign of a vacuum leak (PCV hoses, intake gaskets, cracked boots).':(ti??tc)>10?'Lean (ECU adding fuel) everywhere: dirty MAF sensor, weak fuel pump or clogged fuel filter, or an exhaust leak ahead of the front O2 sensor.':'Rich (ECU removing fuel): leaky injector, high fuel pressure or a bad coolant temp sensor.';
+  add(`Fuel trims, bank ${b}`,w>20?'bad':w>10?'warn':'ok',`Idle ${f(ti)} · cruise ${f(tc)}`,p,tipTrim)}
+ // cat
+ if(c('o2b')){const cl=cruise.filter(r=>r.o2b!=null&&r.o2!=null);
+  if(cl.length<15)add('Catalytic converter (P0420 helper)','na','Needs steady cruise','Cruise at a steady speed for a minute or two.',tipCat);
+  else{const cross=k=>{let n=0;for(let i=1;i<cl.length;i++)if((cl[i-1][k]-.45)*(cl[i][k]-.45)<0)n++;return n},up=cross('o2'),dn=cross('o2b'),ratio=up?dn/up:0,ad=avg(cl.map(r=>r.o2b));
+   const bad=ratio>.5||ad<.45,warn=ratio>.25||ad<.55;
+   add('Catalytic converter (P0420 helper)',bad?'bad':warn?'warn':'ok',`Rear O2 avg ${ad.toFixed(2)} V · ${Math.round(ratio*100)}% of front switching`,bad||warn?'The rear sensor is copying the front one, which means the converter isn’t storing oxygen well. Before buying a cat, rule out a lazy rear O2 sensor or an exhaust leak between the sensors.':'Rear sensor is steady and high while the front one switches: the converter is working.',tipCat)}}
+ // front O2 activity
+ if(c('o2')){const cl=warm.filter(r=>r.o2!=null).slice(-120);
+  if(cl.length<15)add('Front O2 sensor','na','Needs warm running','');
+  else{const mn=Math.min(...cl.map(r=>r.o2)),mx=Math.max(...cl.map(r=>r.o2));
+   add('Front O2 sensor',mx-mn<.3?'warn':'ok',`${mn.toFixed(2)}–${mx.toFixed(2)} V`,mx-mn<.3?'Barely switching: a lazy or contaminated sensor, or the engine is stuck rich or lean.':'Switching across its range as it should.')}}
+ // charging
+ if(c('volt')){const run=rows.filter(r=>r.volt!=null&&r.rpm>500).map(r=>r.volt),v=avg(run);
+  if(v==null){const r=cur.volt;add('Battery & charging',r<12.2?'warn':'ok',`${r.toFixed(1)} V (engine off)`,r<12.2?'Battery is low. Charge or test it.':'Battery charge looks fine. Start the engine to check charging.')}
+  else add('Battery & charging',v<12.8||v>15.2?'bad':v<13.3||v>14.8?'warn':'ok',`${v.toFixed(1)} V running`,v<13.3?'Alternator isn’t charging enough: check the drive belt, connections and alternator.':v>14.8?'Charging voltage is high: possible voltage regulator fault.':'Alternator is charging normally (13.4–14.7 V).')}
+ // idle
+ if(idle.length>=10){const a=avg(idle.map(r=>r.rpm)),s=sd(idle.map(r=>r.rpm)),ok=a>=600&&a<=850&&s<50;
+  add('Idle quality',ok?'ok':'warn',`${Math.round(a)} rpm ± ${Math.round(s)}`,ok?'Smooth idle near the 700 rpm spec.':s>=50?'Idle is unsteady: misfire, vacuum leak, or a dirty idle air control valve / throttle body.':'Idle speed is off spec (about 700 rpm warm). Clean the throttle body and IAC valve, then do an idle relearn.',tipIdle)}
+ else add('Idle quality','na','Needs warm idle','Let it idle warm in Park for a minute.',tipIdle);
+ if(c('adv')&&idle.length>=10){const a=avg(idle.filter(r=>r.adv!=null).map(r=>r.adv));if(a!=null)add('Timing at idle',a>=0&&a<=20?'ok':'warn',`${a.toFixed(1)}° BTDC`,'Subaru spec is about 10° (±10°) at 700 rpm. On this engine timing isn’t adjustable, but way off spec suggests a skipped timing belt or bad crank/cam sensor.')}
+ if(cur.fsys!=null&&cur.ect>=80)add('Fuel control loop',cur.fsys===2?'ok':cur.fsys===4?'ok':'warn',FSYS[cur.fsys]||'Unknown',cur.fsys===2||cur.fsys===4?'The ECU is using the O2 sensors to fine-tune fuel, as it should once warm.':'Warm but not in closed loop: check the O2 sensors and coolant temp sensor.');
+ if(mon){const inc=mon.list.filter(m=>m.s==='inc');add('Emissions readiness',inc.length?'warn':'ok',inc.length?`${inc.length} not ready`:'All ready',inc.length?'Not ready: '+inc.map(m=>m.n).join(', ')+'. A mix of city and highway driving over a few days sets them.':'Ready for an emissions test.')}
+ return out}
+const tipCool='These EJ25s are known for external head-gasket leaks, often on the left head. Check coolant level when cold and look for crusty residue or drips along the head edges. After any radiator or coolant job, bleed the air out (heater on high, nose up, burp the cap) and add Subaru coolant conditioner.';
+const tipTrim='Positive trim means the ECU is adding fuel (lean), negative means it’s removing fuel (rich). Add short and long together. An exhaust leak at the header can also push trims up.';
+const tipCat='P0420 is so common on Subarus that owners call it “the Subaru code.” A slow rear O2 sensor is a frequent misdiagnosis, so replace the cheaper sensor first if it’s lazy.';
+const tipIdle='Spray throttle body cleaner on the throttle plate and IAC passages (engine off), reconnect, then let it idle 10 minutes with all accessories off so the ECU relearns idle.';
+
+/* ---------- maintenance ---------- */
+const MAINT=[['oil','Oil & filter',5000],['air','Engine air filter',30000],['plugs','Spark plugs',30000],['pcv','PCV valve',30000],['fuelf','Fuel filter',30000],['cool','Coolant (+ conditioner)',30000],['atf','Transmission fluid (4EAT)',30000],['diff','Front & rear diff oil',30000],['brake','Brake fluid',30000],['tires','Tire rotation',7500],['belt','Timing belt, idlers & water pump',105000]];
+let mlog={};try{mlog=JSON.parse(store.get('obd-maint')||'{}')}catch(e){}
+const odo=()=>parseFloat($('#odo').value)||null;
+function maintState(){return MAINT.map(([id,n,def])=>{const e=mlog[id]||{},iv=e.iv||def,last=e.last??null,o=odo(),left=o!=null&&last!=null?last+iv-o:null;
+ return{id,n,iv,last,left,s:left==null?'na':left<0?'bad':left<iv*.1?'warn':'ok'}})}
+function renderMaint(){$('#mtb').innerHTML=maintState().map(m=>`<tr data-id="${m.id}"><td>${esc(m.n)}${m.id==='plugs'?`<div class="small">${$('#eng').value==='h6'?'NGK PLFR6A-11':'NGK BKR6E-11'}</div>`:''}${m.id==='belt'?'<div class="small">Interference engine: a snapped belt bends valves</div>':''}</td>
+ <td class="r" data-l="Every (mi)"><input class="in" data-k="iv" type="number" inputmode="numeric" value="${m.iv}" aria-label="Interval for ${esc(m.n)}"></td>
+ <td class="r" data-l="Last done (mi)"><input class="in" data-k="last" type="number" inputmode="numeric" value="${m.last??''}" placeholder="miles" aria-label="Last done for ${esc(m.n)}"></td>
+ <td class="r"><span class="due ${m.s}">${m.left==null?'—':m.left<0?`${Math.round(-m.left).toLocaleString()} mi overdue`:`${Math.round(m.left).toLocaleString()} mi left`}</span></td>
+ <td class="r"><button data-done>Done now</button></td></tr>`).join('')}
+$('#mtb').addEventListener('change',e=>{const tr=e.target.closest('tr'),k=e.target.dataset.k;if(!tr||!k)return;const v=parseFloat(e.target.value);(mlog[tr.dataset.id]??={})[k]=isNaN(v)?undefined:v;store.set('obd-maint',JSON.stringify(mlog));renderMaint()});
+$('#mtb').addEventListener('click',e=>{if(!e.target.closest('[data-done]'))return;const o=odo();if(o==null){note('Enter your odometer reading first.');$('#odo').focus();return}
+ (mlog[e.target.closest('tr').dataset.id]??={}).last=o;store.set('obd-maint',JSON.stringify(mlog));renderMaint()});
+const TIPS=[
+ ['Fresh copper plugs','Use the plugs in the owner’s manual: NGK BKR6E-11 for the 2.5L, NGK PLFR6A-11 for the 3.0L. Worn plugs are the cheapest source of misfires and lost mpg.','Watches: idle quality, misfire codes'],
+ ['Throttle body & IAC clean + idle relearn','Carbon on the throttle plate and idle air passages causes hunting or low idle. Clean, then idle 10 minutes with accessories off.','Watches: idle quality'],
+ ['MAF sensor clean','Only MAF cleaner spray, never touch the wire. A dirty MAF reads low air, so trims go lean and power drops.','Watches: fuel trims, airflow'],
+ ['Hunt vacuum leaks','PCV valve and hoses get brittle with age. If trims are lean at idle but fine at speed, spray-test hoses while watching short-term trim jump.','Watches: fuel trims'],
+ ['Cooling system refresh','New radiator, thermostat, Subaru coolant conditioner, then a careful air bleed. Overheating is what kills EJ25 head gaskets.','Watches: coolant peak & stability'],
+ ['Keep tires matched','AWD wants all four tires the same size, brand and wear. Mismatched tires make the center clutch bind and wear the drivetrain.','Not visible to OBD'],
+ ['Drain-and-fill the 4EAT','Fresh ATF in small steps (not a power flush) helps shift quality on high-mileage automatics.','Not visible to generic OBD'],
+ ['About “performance tunes”','There’s no worthwhile ECU remap for a stock 2001 naturally aspirated Outback like there is for turbo WRXs. Sensors working, no vacuum leaks and fresh ignition parts are where the real gains are.','']];
+$('#tips').innerHTML=TIPS.map(([h,p,k])=>`<div class="tip"><h3>${esc(h)}</h3><p>${esc(p)}</p>${k?`<span class="k">${esc(k)}</span>`:''}</div>`).join('');
+if(store.get('obd-notes')==='Radiator is cracked (replacement pending). Oil leak under the front of the engine.')store.set('obd-notes','Radiator recently replaced (Nov 2026). Oil leak under the front of the engine.');
+for(const[id,key,def]of[['#odo','obd-odo',''],['#notes','obd-notes','Radiator recently replaced (Nov 2026). Oil leak under the front of the engine.'],['#eng','obd-eng','h4'],['#veh','obd-veh','']]){const el=$(id),v=store.get(key);if(v!=null)el.value=v;else if(def)el.value=def;el.addEventListener('change',()=>{store.set(key,el.value);renderMaint()})}
+
+/* ---------- trip, 0-60, log ---------- */
+let z={st:'off',t0:null,best:null};
+function z060(now){const s=(cur.spd??0)*0.621371;if(z.st==='armed'&&s<1)z.st='ready';
+ if(z.st==='ready'&&s>=1){z.st='run';z.t0=now}if(z.st==='run'&&s<0.5){z.st='ready'}
+ if(z.st==='run'&&s>=60){const t=(now-z.t0)/1000;z.best=t;z.st='off';$('#b060').textContent='Arm'}}
+function renderTrip(){const h=trip.t0?(Date.now()-trip.t0)/3600000:0,dist=imperial?trip.km*0.621371:trip.km,fuel=imperial?trip.fuelL/3.785:trip.fuelL;
+ const econ=trip.fuelL>0.01&&trip.km>0.2?(imperial?(trip.km*0.621371)/(trip.fuelL/3.785):trip.fuelL/trip.km*100):null,mx=trip.maxEct!=null?fmtT(trip.maxEct):null,ts=fmtS(trip.topSpd);
+ const S=[['Distance',dist.toFixed(1),imperial?'mi':'km'],['Fuel cost','$'+(fuel*cfg.price).toFixed(2),''],['Avg economy',econ==null?'—':econ.toFixed(1),imperial?'mpg':'L/100km'],['Fuel used',fuel.toFixed(2),imperial?'gal':'L'],['Drive time',`${Math.floor(h)}:${String(Math.floor(h*60%60)).padStart(2,'0')}`,'h:mm'],['Peak coolant',mx?mx.t:'—',mx?mx.u:''],['Peak rpm',trip.maxRpm?Math.round(trip.maxRpm):'—',''],['Top speed',trip.topSpd?ts.t:'—',ts.u]];
+ $('#stats').innerHTML=S.map(([l,v,u])=>`<div class="stat"><span>${l}</span><b class="num">${esc(v)}</b> <span style="display:inline">${esc(u)}</span></div>`).join('');
+ $('#tripSub').textContent=trip.t0?'Started '+new Date(trip.t0).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})+(cur.maf==null&&source!=='none'?' · economy needs MAF data':''):'Starts when data starts.';
+ $('#logSub').textContent=`${rows.length.toLocaleString()} samples recorded`;
+ const run=z.st==='run'?(Date.now()-z.t0)/1000:null;$('#t060').textContent=run!=null?run.toFixed(1)+' s':z.best!=null?z.best.toFixed(1)+' s':'—';
+ $('#s060').textContent={off:z.best!=null?'Last run':'Not armed',armed:'Armed: come to a full stop',ready:'Ready: go when safe',run:'Timing…'}[z.st]}
+function csv(){const keys=Object.keys(P).filter(k=>rows.some(r=>r[k]!=null));
+ const head=['time',...keys.map(k=>{const d=disp(k,0);return`${P[k].label} (${d.u||P[k].unit||''})`})];
+ return[head.join(','),...rows.map(r=>[new Date(r.t).toISOString(),...keys.map(k=>r[k]==null?'':disp(k,r[k]).n?.toFixed(P[k].dp+1)??'')].join(','))].join('\n')}
+
+/* ---------- render ---------- */
+const DIALK=['rpm','ect','spd','load','tps','maf','map','iat','volt','mpg'];
+function dialCfg(k){const v=cur[k],d=disp(k,v);
+ if(k==='rpm'){const mx=Math.max(7000,Math.ceil((cfg.redline+1000)/1000)*1000);return{v,min:0,max:mx,red:cfg.redline,label:v==null?'—':Math.round(v),unit:skin==='analog'?'x1000 rpm':'rpm',lo:'0',hi:mx/1000+'k',num:x=>x/1000}}
+ if(k==='ect'){const red=fmtT(cfg.coolC).n;return imperial?{v:d.n,min:100,max:266,red,label:d.t,unit:'°F',lo:'100',hi:'266'}:{v:d.n,min:40,max:130,red,label:d.t,unit:'°C',lo:'40',hi:'130'}}
+ const[a,b]=rng(k);return{v:d.n,min:a,max:b,red:k==='volt'?15:b,label:d.t,unit:d.u||'',lo:String(a),hi:String(b),num:x=>Math.abs(x)<10&&b<=20?x.toFixed(1):Math.round(x)}}
+let actx=null,lastCrit=false;document.addEventListener('pointerdown',()=>{if(!actx)try{actx=new AudioContext()}catch(e){}},{once:true});
+function buzz(){if(cfg.vib)try{navigator.vibrate?.([300,120,300,120,300])}catch(e){}
+ if(cfg.sound&&actx)try{actx.resume();for(let i=0;i<3;i++){const o=actx.createOscillator(),g=actx.createGain(),t=actx.currentTime+i*.3;o.frequency.value=880;g.gain.setValueAtTime(.25,t);g.gain.exponentialRampToValueAtTime(.001,t+.22);o.connect(g).connect(actx.destination);o.start(t);o.stop(t+.25)}}catch(e){}}
+let wl=null;async function wake(){const want=cfg.awake&&(source==='live'||source==='demo')&&document.visibilityState==='visible';
+ try{if(want&&!wl){wl=await navigator.wakeLock.request('screen');wl.addEventListener('release',()=>{wl=null})}else if(!want&&wl){await wl.release();wl=null}$('#awakeNote').textContent=''}
+ catch(e){wl=null;if(cfg.awake)$('#awakeNote').textContent='Keeping the screen on isn’t allowed in this view.'}}
+document.addEventListener('visibilitychange',wake);
+function render(){
+ const e=fmtT(cur.ect);
+ dial($('#dRpm'),dialCfg(cfg.dial1));dial($('#dEct'),dialCfg(cfg.dial2));$('#dT1').textContent=P[cfg.dial1].label;$('#dT2').textContent=P[cfg.dial2].label;
+ const ks=TILES.filter(k=>cur[k]!=null&&!cfg.hide.includes(k));
+ $('#tiles').innerHTML=(!ks.length?'<div class="card empty">Plug in your adapter and tap USB, try the Demo, or import a log to see readings.</div>'
+  :skin==='console'?`<div class="card ctab" style="grid-column:1/-1;margin:0"><table><thead><tr><th>Parameter</th><th class="r">Value</th><th>Unit</th><th class="r">Min</th><th class="r">Max</th><th>Trend</th></tr></thead><tbody>${ks.map(k=>{const d=disp(k,cur[k]),h=hist[k]||[];return`<tr><td>${esc(P[k].label)}</td><td class="r"><b>${esc(d.t)}</b></td><td>${esc(d.u)}</td><td class="r">${esc(disp(k,Math.min(...h)).t)}</td><td class="r">${esc(disp(k,Math.max(...h)).t)}</td><td>${spark(h)}</td></tr>`}).join('')}${cur.fsys!=null?`<tr><td>Fuel system</td><td class="r" colspan="2">${esc(FSYS[cur.fsys]||'—')}</td><td></td><td></td><td></td></tr>`:''}</tbody></table></div>`
+  :skin==='analog'?ks.map(k=>`<div class="card tile ag"><h3>${esc(P[k].label)}</h3>${mini(k)}</div>`).join('')
+  :ks.map(k=>{const d=disp(k,cur[k]);return`<div class="card tile"><h3>${esc(P[k].label)}</h3><div><span class="v num">${esc(d.t)}</span><span class="u">${esc(d.u)}</span></div>${spark(hist[k])}</div>`}).join(''))
+  +(ks.length&&cur.fsys!=null&&skin!=='console'?`<div class="card tile"><h3>Fuel system</h3><div style="font-weight:600;margin-top:6px">${esc(FSYS[cur.fsys]||'—')}</div></div>`:'');
+ const al=$('#alert'),c=cur.ect;
+ const crit=c!=null&&c>=cfg.coolC;if(crit&&!lastCrit)buzz();lastCrit=crit;
+ if(crit){al.className='alert on bad';$('#alertT').textContent=`Coolant at ${e.t}${e.u}: overheating. Pull over safely, shut the engine off and let it cool. Don’t open the radiator cap while it’s hot.`}
+ else if(c!=null&&c>=cfg.coolW){al.className='alert on warn';$('#alertT').textContent=`Coolant at ${e.t}${e.u}: running warm. Keep an eye on it.`}
+ else if(cur.rpm>500&&cur.volt!=null&&cur.volt<cfg.voltLow&&source!=='log'){al.className='alert on warn';$('#alertT').textContent=`Charging voltage is ${cur.volt.toFixed(1)} V with the engine running. The alternator may not be charging.`}
+ else al.className='alert';
+ if(tab==='health')renderHealth();if(tab==='trip')renderTrip()}
+function renderHealth(){const H=health(),open=new Set([...document.querySelectorAll('#checks details[open]')].map(d=>d.dataset.t));$('#checks').innerHTML=H.length?H.map(h=>`<div class="chk"><span class="dot ${h.s}"></span><h3>${esc(h.t)}</h3><span class="st ${h.s}">${esc(h.v)}</span>${h.p?`<p>${esc(h.p)}</p>`:''}${h.tip?`<details data-t="${esc(h.t)}"${open.has(h.t)?' open':''}><summary>Subaru tip</summary>${esc(h.tip)}</details>`:''}</div>`).join('')
+ :'<div class="small">No data yet. Connect, run the demo, or import a log.</div>';
+ $('#mons').innerHTML=mon?mon.list.map(m=>`<div class="mon"><span class="dot ${m.s==='ok'?'ok':'warn'}" style="margin:0"></span>${esc(m.n)}<span class="small" style="margin-inline-start:auto">${m.s==='ok'?'Ready':'Not ready'}</span></div>`).join(''):'<div class="small">Connect to read monitor status.</div>'}
+function renderCodes(){const ul=$('#codes');
+ $('#milT').textContent=mon?(mon.mil?`Check-engine light is ON · ${mon.n} code${mon.n===1?'':'s'} stored`:'Check-engine light is off'):'Read the codes to see check-engine status.';
+ if(codes==null){ul.innerHTML='<li><small>No codes read yet.</small></li>';$('#ff').innerHTML='';return}
+ const all=[...codes.map(c=>[c,'Stored']),...pending.filter(c=>!codes.includes(c)).map(c=>[c,'Pending'])];
+ ul.innerHTML=all.length?all.map(([c,t])=>`<li><b>${esc(c)}</b><span>${esc(DESC[c]||(c[1]==='1'?'Subaru-specific code':'Ask Claude for details'))}<br><small>${t}</small></span></li>`).join('')
+  :'<li><span style="color:var(--ok);font-weight:600">No trouble codes stored.</span></li>';
+ $('#ff').innerHTML=ff&&ff.code?`<div class="hd" style="margin:16px 0 6px"><div><h2>Freeze frame</h2><div class="sub">Conditions when ${esc(ff.code)} was set</div></div></div><table><tbody>${Object.entries(ff.vals).map(([k,v])=>{const d=disp(k,v);return`<tr><td>${esc(P[k].label)}</td><td class="r">${esc(d.t)} ${esc(d.u)}</td></tr>`}).join('')}</tbody></table>`:''}
+function mark(k){for(const[id,v]of[['#bUsb','usb'],['#bConn','ble'],['#bDemo','demo'],['#lImp','log']])$(id).classList.toggle('pri',k===v)}
+function setSource(s,t){source=s;setTimeout(wake);if(s==='none')mark(null);else if(s!=='live')mark(s);$('#pill').className='pill '+s;$('#pillT').textContent=t;$('#bRead').disabled=$('#bClear').disabled=$('#bMon').disabled=!(s==='live'||s==='demo')}
+function note(t){$('#noteT').textContent=t;$('#note').classList.toggle('on',!!t)}
+function reset(){cur={};hist={};rows=[];codes=null;pending=[];mon=null;ff=null;trip={t0:null,last:null,km:0,fuelL:0,maxEct:null,maxRpm:0,topSpd:0};renderCodes()}
+
+/* ---------- demo ---------- */
+let demoT=null,tick=0;
+function demoStep(){tick++;const dr=Math.max(0,Math.sin(tick/40)),rev=dr<.05&&Math.sin(tick/9)>.7;
+ const rpm=rev?1800+Math.random()*1200:690+Math.random()*50+dr*1700;push('rpm',rpm);
+ push('ect',Math.min(93,84+tick*.02)+Math.random()*1.2);push('spd',dr*106);push('load',17+rpm/130+Math.random()*4);
+ push('tps',rev?25+Math.random()*15:dr*16);push('iat',22+Math.random());push('maf',rpm/230+dr*6+Math.random());
+ push('map',rev?68:31+dr*22);push('adv',rev?24:dr>.1?28:9+Math.random()*3);push('stft1',(Math.random()-.5)*7);push('ltft1',5.5);
+ const o=Math.random()>.5?.75:.15;push('o2',o+Math.random()*.1);push('o2b',dr>.3?(Math.random()>.6?o:.62):.6+Math.random()*.08);
+ push('volt',14.1+Math.random()*.1);push('baro',89);cur.fsys=dr>.05||!rev?2:4}
+function startDemo(){stopAll();reset();tick=0;setSource('demo','Demo (simulated)');note('Demo mode: simulated readings from a warmed-up Outback, not your car.');
+ codes=['P0420'];pending=['P0141'];mon={mil:true,n:1,list:[{n:'Misfire',s:'ok'},{n:'Fuel system',s:'ok'},{n:'Components',s:'ok'},{n:'Catalyst',s:'inc'},{n:'EVAP',s:'ok'},{n:'O2 sensor',s:'ok'},{n:'O2 heater',s:'inc'}]};
+ ff={code:'P0420',vals:{rpm:2240,ect:91,spd:96,load:41,stft1:2.3,ltft1:5.5}};renderCodes();
+ const n=300,t0=Date.now()-n*600;for(let i=0;i<n;i++){demoStep();record(t0+i*600,true)}render();
+ demoT=setInterval(()=>{demoStep();record()},600)}
+function stopAll(){clearInterval(demoT);demoT=null;link.on=false;const c=link.close;link.close=null;if(c)c()}
+
+/* ---------- adapter link: BLE, USB (Web Serial on computers, WebUSB + FTDI on Android) ---------- */
+const SVCS=[0xfff0,0xffe0,0x18f0,'e7810a71-73ae-499d-8c15-faa9aef0c3f2'];
+const link={on:false,buf:'',wait:null,q:Promise.resolve(),sup:new Set(),can:false,write:null,close:null};
+const enc=new TextEncoder(),dec=new TextDecoder();
+const err=(name,msg='')=>Object.assign(new Error(msg),{name});
+function feed(s){link.buf+=s;const i=link.buf.indexOf('>');if(i>=0){const r=link.buf.slice(0,i);link.buf='';link.wait&&link.wait(r)}}
+function lost(){if(!link.close)return;link.on=false;link.close=null;if(source==='live')setSource('none','Disconnected')}
+function raw(s,ms){return new Promise(res=>{const t=setTimeout(()=>{link.wait=null;link.buf='';res('TIMEOUT')},ms);
+ link.wait=r=>{clearTimeout(t);link.wait=null;res(r.replace(/\r/g,'\n').trim())};
+ Promise.resolve().then(()=>link.write(enc.encode(s+'\r'))).catch(()=>{clearTimeout(t);link.wait=null;res('ERROR')})})}
+function send(s,ms=3000){const p=link.q.then(()=>raw(s,ms));link.q=p.catch(()=>{});return p}
+const clean=r=>r.replace(/\s/g,'').toUpperCase();
+function bytes(r,hdr,n){const c=clean(r),i=c.indexOf(hdr);if(i<0)return null;const h=c.substr(i+hdr.length,n*2);if(h.length<n*2||/[^0-9A-F]/.test(h))return null;return h.match(/../g).map(x=>parseInt(x,16))}
+async function openBLE(){if(!navigator.bluetooth)throw err('Unsupported');
+ const dev=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:SVCS});
+ $('#pillT').textContent='Connecting…';const g=await dev.gatt.connect();let rx=null,tx=null;
+ for(const s of SVCS){try{const sv=await g.getPrimaryService(s);for(const c of await sv.getCharacteristics()){if(!rx&&(c.properties.notify||c.properties.indicate))rx=c;if(!tx&&(c.properties.write||c.properties.writeWithoutResponse))tx=c}if(rx&&tx)break;rx=tx=null}catch(e){}}
+ if(!rx)throw new Error('This device doesn’t look like an ELM327 BLE adapter.');
+ await rx.startNotifications();rx.addEventListener('characteristicvaluechanged',e=>feed(dec.decode(e.target.value)));
+ dev.addEventListener('gattserverdisconnected',lost);
+ return{name:dev.name||'Bluetooth adapter',write:d=>tx.properties.writeWithoutResponse?tx.writeValueWithoutResponse(d):tx.writeValue(d),close:()=>{try{dev.gatt.disconnect()}catch(e){}}}}
+async function openFTDI(){if(!navigator.usb)throw err('Unsupported');
+ const dev=await navigator.usb.requestDevice({filters:[{vendorId:0x0403}]});
+ $('#pillT').textContent='Connecting…';await dev.open();if(!dev.configuration)await dev.selectConfiguration(1);
+ const itf=dev.configuration.interfaces[0];try{await dev.claimInterface(itf.interfaceNumber)}catch(e){throw err('Busy')}
+ const eps=itf.alternate.endpoints,inE=eps.find(e=>e.direction==='in'),outE=eps.find(e=>e.direction==='out'),ps=inE.packetSize||64;
+ const ctl=(request,value,index=1)=>dev.controlTransferOut({requestType:'vendor',recipient:'device',request,value,index});
+ await ctl(0,0);await ctl(3,0x1a,0);await ctl(4,8);await ctl(2,0);await ctl(1,0x0303);await ctl(9,4);
+ let open=true;const ud=new TextDecoder();
+ (async()=>{while(open){try{const r=await dev.transferIn(inE.endpointNumber,ps*8),u=new Uint8Array(r.data.buffer,r.data.byteOffset,r.data.byteLength);let s='';
+   for(let o=0;o<u.length;o+=ps)if(u.length>o+2)s+=ud.decode(u.subarray(o+2,Math.min(o+ps,u.length)),{stream:true});if(s)feed(s)}
+  catch(e){if(open){open=false;lost()}}}})();
+ navigator.usb.addEventListener('disconnect',e=>{if(e.device===dev){open=false;lost()}});
+ return{name:dev.productName||'USB adapter',write:d=>dev.transferOut(outE.endpointNumber,d),close:()=>{open=false;dev.close().catch(()=>{})}}}
+async function openSerial(){const port=await navigator.serial.requestPort({filters:[{usbVendorId:0x0403}]});
+ $('#pillT').textContent='Connecting…';try{await port.open({baudRate:115200})}catch(e){throw err('Busy')}
+ const w=port.writable.getWriter(),rd=port.readable.getReader(),sd2=new TextDecoder();let open=true;
+ (async()=>{try{while(open){const{value,done}=await rd.read();if(done)break;if(value)feed(sd2.decode(value,{stream:true}))}}catch(e){}if(open){open=false;lost()}})();
+ return{name:'USB adapter',write:d=>w.write(d),close:async()=>{open=false;try{await rd.cancel();rd.releaseLock();w.releaseLock();await port.close()}catch(e){}}}}
+const openUSB=()=>(/Android/i.test(navigator.userAgent)||!navigator.serial)?openFTDI():openSerial();
+function supBits(r,hdr,base){const b=bytes(r,hdr,4);if(!b)return false;b.forEach((x,i)=>{for(let j=0;j<8;j++)if(x&(128>>j))link.sup.add((base+i*8+j+1).toString(16).toUpperCase().padStart(2,'0'))});return true}
+async function connect(kind){
+ try{stopAll();note('');mark(kind);$('#pillT').textContent='Pick your adapter…';
+  const L=kind==='usb'?await openUSB():await openBLE();Object.assign(link,L,{buf:'',wait:null,q:Promise.resolve()});
+  $('#pillT').textContent='Talking to car…';
+  await send('ATZ',3000);for(const c of['ATE0','ATL0','ATS0','ATH0','ATSP'+cfg.proto])await send(c);
+  link.sup=new Set();if(!supBits(await send('0100',12000),'4100',0))throw new Error('Adapter connected, but the car didn’t answer. Turn the key to ON (or start the engine) and try again.');
+  if(link.sup.has('20'))supBits(await send('0120',4000),'4120',0x20);
+  link.can=/[6-9AB]$/.test(clean(await send('ATDPN')));
+  reset();setSource('live','Live · '+L.name);link.on=true;readMon();poll()}
+ catch(e){stopAll();setSource('none','Not connected');if(e.name==='NotFoundError')return;const where=kind==='usb'?'USB':'Bluetooth';
+  note(e.name==='Unsupported'?`${where} isn’t available in this browser. Use Chrome on Android or a computer, or import a CSV log instead.`
+   :e.name==='SecurityError'||e.name==='NotAllowedError'?`This view blocked ${where} access. Open the standalone copy of this page in Chrome instead.`
+   :e.name==='Busy'?'Another app is using the adapter. Close the OBDLink, FORScan or other OBD app (on Android, dismiss the “Open with” popup), unplug and replug the adapter, then try again.'
+   :'Couldn’t connect: '+e.message)}}
+async function poll(){const keys=Object.keys(P).filter(k=>P[k].pid&&link.sup.has(P[k].pid)),fastK=['rpm','ect','spd','maf','load'],fast=keys.filter(k=>fastK.includes(k)),slow=keys.filter(k=>!fastK.includes(k));let i=0,n=0;
+ while(link.on){const batch=[...fast,...(cfg.fast?[]:slow.slice(i,i+3))];i=i+3>=slow.length?0:i+3;
+  for(const k of batch){if(!link.on)return;const p=P[k],b=bytes(await send('01'+p.pid),'41'+p.pid,p.n||1);if(b){if(k==='fsys')cur.fsys=b[0];else push(k,p.f(...b))}}
+  if(n++%6===0){const v=parseFloat(await send('ATRV'));if(v)push('volt',v)}record()}}
+const MONS=['Catalyst','Heated catalyst','EVAP','Secondary air','A/C refrigerant','O2 sensor','O2 heater','EGR'];
+async function readMon(){if(source==='demo'){renderHealth();return}const b=bytes(await send('0101'),'4101',4);if(!b)return;
+ const list=[];['Misfire','Fuel system','Components'].forEach((n,i)=>{if(b[1]&(1<<i))list.push({n,s:b[1]&(16<<i)?'inc':'ok'})});
+ MONS.forEach((n,i)=>{if(b[2]&(1<<i))list.push({n,s:b[3]&(1<<i)?'inc':'ok'})});mon={mil:!!(b[0]&128),n:b[0]&127,list};renderCodes();if(tab==='health')renderHealth()}
+function parseDTC(r,resp){let h='';for(let l of r.split('\n')){l=clean(l).replace(/^[0-9A-F]:/,'');if(!l||/[^0-9A-F]/.test(l)||/^[0-9A-F]{3}$/.test(l))continue;
+  if(l.startsWith(resp)){l=l.slice(2);if(link.can)l=l.slice(2)}h+=l}
+ const out=[];for(let i=0;i+4<=h.length;i+=4){const c=h.substr(i,4);if(c==='0000')continue;const n=parseInt(c,16),code='PCBU'[n>>14]+((n>>12)&3)+c.slice(1);if(!out.includes(code))out.push(code)}return out}
+async function readCodes(){if(source==='demo'){renderCodes();return}
+ $('#bRead').disabled=true;await readMon();codes=parseDTC(await send('03',8000),'43');pending=parseDTC(await send('07',8000),'47');ff=null;
+ if(codes.length){const d=bytes(await send('020200',4000),'420200',2);if(d&&(d[0]||d[1])){const vals={};
+  for(const k of['rpm','ect','spd','load','stft1','ltft1','tps']){if(!link.sup.has(P[k].pid))continue;const b=bytes(await send('02'+P[k].pid+'00',3000),'42'+P[k].pid+'00',P[k].n||1);if(b)vals[k]=P[k].f(...b)}
+  ff={code:parseDTC('43'+(link.can?'01':'')+d.map(x=>x.toString(16).padStart(2,'0')).join('').toUpperCase(),'43')[0],vals}}}
+ renderCodes();$('#bRead').disabled=false}
+async function clearCodes(){$('#ov').classList.remove('on');if(source==='demo'){codes=[];pending=[];ff=null;mon.mil=false;mon.n=0;mon.list.forEach(m=>m.s='inc');renderCodes();renderHealth();return}
+ const r=clean(await send('04',8000));if(!r.includes('44'))note('The car didn’t confirm the clear. Some cars need the engine off with the key ON.');await readCodes()}
+
+/* ---------- CSV import ---------- */
+const MAP=[[/engine\s*rpm|\brpm\b/i,'rpm'],[/coolant/i,'ect'],[/vehicle speed|speed\s*\(obd\)|^speed/i,'spd'],[/engine load|calculated load/i,'load'],[/throttle/i,'tps'],[/intake air temp/i,'iat'],[/mass air|\bmaf\b/i,'maf'],[/manifold.*press|\bmap\b/i,'map'],[/timing/i,'adv'],[/short.*b(ank)?\s*1|stft.*1/i,'stft1'],[/long.*b(ank)?\s*1|ltft.*1/i,'ltft1'],[/short.*b(ank)?\s*2|stft.*2/i,'stft2'],[/long.*b(ank)?\s*2|ltft.*2/i,'ltft2'],[/o2.*(b1s2|bank\s*1.*sensor\s*2|rear)/i,'o2b'],[/o2.*(b2s1|bank\s*2.*sensor\s*1)/i,'o2c'],[/o2.*(b1s1|bank\s*1.*sensor\s*1|front)/i,'o2'],[/barometric/i,'baro'],[/volt|battery/i,'volt']];
+function importCSV(txt){const lines=txt.trim().split(/\r?\n/).map(l=>l.split(/[,;\t]/).map(x=>x.replace(/^"|"$/g,'').trim()));const head=lines.shift()||[];
+ const cols=[];head.forEach((h,i)=>{const m=MAP.find(([re,k])=>re.test(h)&&!cols.some(c=>c.k===k));if(m)cols.push({i,k:m[1],F:/°\s*F|\(F\)|fahrenheit/i.test(h),mph:/mph/i.test(h)})});
+ if(!cols.length){note('Couldn’t find any known sensor columns in that file. Export a CSV log from this app, Car Scanner or Torque and try again.');return}
+ stopAll();reset();const ti=head.findIndex(h=>/time/i.test(h)),t0=Date.now()-lines.length*1000;
+ lines.slice(-7200).forEach((r,j)=>{const o={};for(const c of cols){let v=parseFloat(r[c.i]);if(isNaN(v))continue;if(c.F)v=(v-32)*5/9;if(c.mph)v=v/0.621371;o[c.k]=v;push(c.k,v)}
+  let t=ti>=0?Date.parse(r[ti]):NaN;if(isNaN(t))t=t0+j*1000;rows.push({t,...o})});
+ trip.t0=rows[0]?.t;setSource('log','Log · '+lines.length+' rows');note('Imported log. Health checks and Claude use the whole file.');render()}
+
+/* ---------- tabs & buttons ---------- */
+let tab='dash';
+function setTab(t){tab=t;document.body.dataset.tab=t;document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.t===t));
+ document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+t||(t==='chat'&&false)));
+ if(t==='health')renderHealth();if(t==='trip')renderTrip();if(t==='maint')renderMaint();try{if(t!=='chat')history.replaceState(null,'','#'+t)}catch(e){}}
+document.querySelector('.tabs').onclick=e=>{const b=e.target.closest('button');if(b)setTab(b.dataset.t)};
+$('#bConn').onclick=()=>connect('ble');$('#bUsb').onclick=()=>connect('usb');$('#bDemo').onclick=startDemo;
+$('#fLog').onchange=e=>{const f=e.target.files[0];if(f)f.text().then(importCSV);e.target.value=''};
+const SKINS=[['studio','Studio','Clean graphite & orange (default)',['#f3f4f1','#ffffff','#ff5a1f','#14161a']],['analog','Analog','Black with chrome round gauges',['#050505','#1d1d1d','#e3241b','#d8d8d8']],['tiles','Tiles','Dark slate, bright colored readouts',['#0b1520','#4cc0ff','#5be08a','#ffcf4a']],['console','Console','Grey desktop diagnostic table',['#ececec','#ffffff','#1b5fcc','#bdbdbd']],['clean','Clean','White & blue, bottom tab bar on phones',['#f4f6f9','#ffffff','#1570e8','#1a2330']]];
+function fillCfg(){document.querySelectorAll('#set [data-c]').forEach(el=>{let v=cfg[el.dataset.c];if(el.dataset.temp)v=Math.round(fmtT(v).n);if(el.type==='checkbox')el.checked=!!v;else el.value=v});
+ document.querySelectorAll('#set .tu').forEach(e=>e.textContent=imperial?'°F':'°C');document.querySelector('#set .pu').textContent=imperial?'gallon':'liter';
+ $('#cTiles').innerHTML=TILES.map(k=>`<button data-tile="${k}" aria-pressed="${!cfg.hide.includes(k)}">${esc(P[k].label)}</button>`).join('')}
+function renderSet(){fillCfg();$('#skins').innerHTML=SKINS.map(([id,n,d,c])=>`<button class="sk" data-s="${id}" aria-pressed="${skin===id}"><span class="pv" style="background:${c[0]}"><i style="background:${c[1]}"></i><i style="background:${c[2]};height:85%"></i><i style="background:${c[3]};height:40%"></i></span><b>${n}</b><small>${d}</small></button>`).join('');
+ document.querySelectorAll('#seg button').forEach(b=>b.setAttribute('aria-pressed',(b.dataset.u==='imp')===imperial))}
+function setSkin(k){skin=k;document.documentElement.dataset.skin=k;store.set('obd-skin',k);renderSet();render()}
+$('#skins').onclick=e=>{const b=e.target.closest('.sk');if(b)setSkin(b.dataset.s)};
+$('#seg').onclick=e=>{const b=e.target.closest('button');if(!b)return;imperial=b.dataset.u==='imp';store.set('obd-units',imperial?'imperial':'metric');unitsLbl();renderSet();render();renderCodes()};
+for(const id of['#cD1','#cD2'])$(id).innerHTML=DIALK.map(k=>`<option value="${k}">${esc(P[k].label)}</option>`).join('');
+$('#set').addEventListener('change',e=>{const el=e.target,k=el.dataset.c;if(!k)return;let v=el.type==='checkbox'?el.checked:el.type==='number'?parseFloat(el.value):el.value;
+ if(el.type==='number'&&isNaN(v)){fillCfg();return}if(el.dataset.temp&&imperial)v=(v-32)*5/9;cfg[k]=v;saveCfg();wake();render()});
+$('#cTiles').onclick=e=>{const b=e.target.closest('[data-tile]');if(!b)return;const k=b.dataset.tile;cfg.hide=cfg.hide.includes(k)?cfg.hide.filter(x=>x!==k):[...cfg.hide,k];saveCfg();fillCfg();render()};
+function twoStep(btn,label,fn){let armed=false,t;btn.onclick=()=>{if(!armed){armed=true;btn.textContent='Tap again to confirm';btn.classList.add('pri');t=setTimeout(()=>{armed=false;btn.textContent=label;btn.classList.remove('pri')},3000)}else{clearTimeout(t);armed=false;btn.textContent='Done ✓';btn.classList.remove('pri');fn();setTimeout(()=>btn.textContent=label,1500)}}}
+twoStep($('#cReset'),'Reset settings',()=>{cfg={...CFG0};saveCfg();imperial=true;store.set('obd-units','imperial');unitsLbl();setSkin('studio');wake();renderCodes()});
+twoStep($('#cClearM'),'Clear service history',()=>{mlog={};store.set('obd-maint','{}');renderMaint()});
+const closeSet=()=>{$('#set').classList.remove('on');$('#bSet').focus()};
+$('#bSet').onclick=()=>{renderSet();$('#set').classList.add('on');$('#bSetX').focus()};$('#bSetX').onclick=closeSet;
+$('#set').onclick=e=>{if(e.target.id==='set')closeSet()};document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#set').classList.contains('on'))closeSet()});
+const unitsLbl=()=>$('#bUnits').textContent=imperial?'°F':'°C';unitsLbl();
+$('#bUnits').onclick=()=>{imperial=!imperial;store.set('obd-units',imperial?'imperial':'metric');unitsLbl();render();renderCodes()};
+$('#bRead').onclick=readCodes;$('#bMon').onclick=readMon;$('#bClear').onclick=()=>$('#ov').classList.add('on');$('#bNo').onclick=()=>$('#ov').classList.remove('on');$('#bYes').onclick=clearCodes;
+$('#bTripReset').onclick=()=>{trip={t0:rows.length?Date.now():null,last:null,km:0,fuelL:0,maxEct:null,maxRpm:0,topSpd:0};z.best=null;renderTrip()};
+$('#b060').onclick=()=>{if(z.st==='off'){z.st='armed';$('#b060').textContent='Cancel'}else{z.st='off';$('#b060').textContent='Arm'}renderTrip()};
+setInterval(()=>{if(tab==='trip')renderTrip()},250);
+let dl=null;
+$('#bSave').onclick=async()=>{if(!rows.length){note('Nothing recorded yet.');return}const name=`outback-log-${new Date().toISOString().slice(0,16).replace(/[:T]/g,'-')}.csv`,data=csv();
+ if(dl){try{await dl.save({filename:name,data});return}catch(e){if(e?.code==='declined')return}}
+ try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:'text/csv'}));a.download=name;a.click()}catch(e){note('Saving isn’t available here. Use Copy CSV instead.')}};
+$('#bCopy').onclick=()=>{if(!rows.length){note('Nothing recorded yet.');return}navigator.clipboard.writeText(csv()).then(()=>{$('#bCopy').textContent='Copied';setTimeout(()=>$('#bCopy').textContent='Copy CSV',1500)},()=>note('Copy was blocked by the browser.'))};
+
+/* ---------- Claude chat ---------- */
+let sample=null,tts=null,dict=null,speakOn=false,busy=false;const msgs=[];
+function snap(){const o={};for(const k in P)if(cur[k]!=null&&k!=='fsys'){const d=disp(k,cur[k]);o[P[k].label]=d.t+' '+d.u}if(cur.fsys!=null)o['Fuel system']=FSYS[cur.fsys]||cur.fsys;return o}
+function stats(){const o={};for(const k in P){const a=rows.map(r=>r[k]).filter(v=>v!=null);if(!a.length||k==='fsys')continue;const f=v=>disp(k,v).t;o[P[k].label]={unit:disp(k,a[0]).u,latest:f(a.at(-1)),min:f(Math.min(...a)),max:f(Math.max(...a)),avg:f(avg(a)),samples:a.length}}return o}
+const TOOLS=[
+ {name:'get_live_data',description:'Latest reading for every sensor the car reports, in the user\'s display units, plus the data source.',execute:()=>({source,readings:snap()})},
+ {name:'get_trouble_codes',description:'Stored and pending trouble codes, check-engine light status, freeze frame and emissions readiness monitors.',execute:()=>({stored:codes,pending,mil:mon?.mil,readiness:mon?.list,freeze_frame:ff&&{code:ff.code,values:Object.fromEntries(Object.entries(ff.vals).map(([k,v])=>[P[k].label,disp(k,v).t+' '+disp(k,v).u]))}})},
+ {name:'get_history',description:'Min, max, average and latest for each sensor over this session.',execute:()=>stats()},
+ {name:'get_health_checks',description:'The app\'s automatic health checks (cooling/head gasket, thermostat, fuel trims, catalytic converter, O2, charging, idle, timing) with status and values.',execute:()=>health().map(h=>({check:h.t,status:h.s,value:h.v,detail:h.p}))},
+ {name:'get_trip',description:'Current trip: distance, fuel used, average economy, peaks, 0-60 result.',execute:()=>{const s={};document.querySelectorAll('#stats .stat').forEach(e=>{s[e.firstChild.textContent]=e.querySelector('b').textContent+' '+(e.lastChild.textContent||'')});return{...s,zero_to_sixty_s:z.best}}},
+ {name:'get_maintenance',description:'Odometer, engine, owner notes and the service schedule with miles left or overdue.',execute:()=>({odometer_mi:odo(),engine:$('#eng').selectedOptions[0].text,notes:$('#notes').value,items:maintState().map(m=>({item:m.n,interval_mi:m.iv,last_done_mi:m.last,miles_left:m.left==null?null:Math.round(m.left)}))})}];
+function sys(){return`You are a friendly, practical Subaru-savvy mechanic built into an OBD-II monitor app, talking with the owner of a ${$('#veh').value||'car'} (${$('#eng').selectedOptions[0].text}). Owner notes: ${$('#notes').value||'none'}. The app reads the car through an ELM327/OBDLink adapter, a demo simulation or an imported log. Data source now: ${source==='none'?'nothing connected yet':source}${source==='demo'?' (simulated, not their real car: say so when relevant)':''}. Use the tools to check readings, codes, health checks, trip and maintenance before answering anything about the car. You know this platform: EJ25 head-gasket leaks, P0420 sensitivity, interference engine with a 105k-mile timing belt, AWD needs matched tires, 4EAT automatic. Answers are read on a phone and may be spoken aloud: plain sentences, no markdown, usually under 120 words unless asked for more. Give normal ranges and a clear next step. Be firm on safety (coolant above about 105°C/221°F means stop driving; never open a hot radiator cap). Units the user sees: ${imperial?'°F, mph, mpg':'°C, km/h, L/100km'}. Be honest when OBD data can't tell you something, and don't promise performance gains from tuning this engine.`}
+function bubble(cls,t){const d=document.createElement('div');d.className='m '+cls;d.textContent=t;$('#log').append(d);$('#log').scrollTop=1e9;return d}
+async function ask(q){q=q.trim();if(!q||busy)return;if(!sample){bubble('sys','Chat with Claude is only available on the claude.ai version of this page.');return}
+ busy=true;$('#bSend').disabled=true;$('#q').value='';bubble('u',q);msgs.push({role:'user',content:q});const b=bubble('a','Thinking…');
+ const input=msgs.map((m,i)=>i===0?{role:'user',content:sys()+'\n\nOwner: '+m.content}:m);
+ try{const r=await sample(input,{tools:TOOLS,cache:false,onText:({text})=>{b.textContent=text;$('#log').scrollTop=1e9}});
+  b.textContent=r.text;msgs.push({role:'assistant',content:r.text});if(speakOn&&tts)tts.speak(r.text.slice(0,2000)).catch(()=>{})}
+ catch(e){msgs.pop();b.className='m sys';b.textContent=e.code==='rate_limited'?'Too many questions at once. Wait a moment and try again.':e.code==='not_granted'?'Chat with Claude was turned off for this page.':'Something went wrong. Try again.'}
+ busy=false;$('#bSend').disabled=false}
+$('#ask').onsubmit=e=>{e.preventDefault();ask($('#q').value)};
+const CH=['Anything look wrong right now?','Is my engine running hot?','Explain my trouble codes','Are my fuel trims normal?','What maintenance is due?','How’s my head gasket looking?'];
+$('#chips').innerHTML=CH.map(c=>`<button type="button">${esc(c)}</button>`).join('');
+$('#chips').onclick=e=>{const b=e.target.closest('button');if(b)ask(b.textContent)};
+$('#bSpk').onclick=()=>{speakOn=!speakOn;$('#bSpk').classList.toggle('on',speakOn);if(!speakOn)tts?.stop()};
+let listening=false;
+$('#bMic').onclick=()=>{if(!dict)return;if(listening){dict.stop().then(()=>ask($('#q').value)).catch(()=>{});return}dict.start().catch(e=>{if(e?.code==='not_granted')$('#bMic').classList.add('hide')})};
+(async()=>{if(!window.claude?.use){bubble('sys','Chat with Claude is only available on the claude.ai version of this page.');return}
+ const[s,t,d,w]=await Promise.all(['sample','tts','dictation','downloads'].map(n=>claude.use(n).catch(()=>null)));sample=s;tts=t;dict=d;dl=w;
+ if(!s)bubble('sys','Chat with Claude isn’t available in this view.');if(t)$('#bSpk').classList.remove('hide');
+ if(d){$('#bMic').classList.remove('hide');let base='';
+  d.onState(({state})=>{listening=state==='listening';$('#bMic').classList.toggle('on',listening);if(listening)base=$('#q').value?$('#q').value+' ':''});
+  d.onPartial(({text})=>{$('#q').value=base+text});d.onFinal(({text})=>{base+=text+' ';$('#q').value=base})}})();
+
+const h0=location.hash.slice(1);if(['dash','health','maint','trip'].includes(h0))setTab(h0);
+render();renderMaint();
+}
+</script></body></html>
