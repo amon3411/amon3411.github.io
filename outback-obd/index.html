@@ -10,7 +10,7 @@
    IDEA: a diagnostic scan tool's screen with a mechanic beside it
    PICTURE: two live dials leading the dashboard, health rows like an inspection sheet
    COLOUR/TYPE: white/graphite panels, check-engine orange accent; Barlow Condensed figures, Inter UI
-   LAYOUT: app bar → tab bar → content | chat panel (chat becomes a tab on phones) */
+   LAYOUT: app bar → sticky tab bar → full-width content; Ask Claude is a compact pop-up */
 :root{color-scheme:light dark;--bg:light-dark(#f3f4f1,#0e1012);--card:light-dark(#fff,#171a1d);--ink:light-dark(#14161a,#eceee9);--mute:light-dark(#646a71,#99a0a7);--line:light-dark(#e2e4df,#262a2e);--soft:light-dark(#f1f2ee,#202427);--acc:#ff5a1f;--acc2:light-dark(#d9440d,#ff7a45);--warn:#e8a317;--bad:#e0342b;--ok:light-dark(#1d8a4e,#4ccf86)}
 :root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
 *{box-sizing:border-box;min-width:0}
@@ -39,7 +39,7 @@ svg.i{width:18px;height:18px;flex:none}
 .tabs{max-width:1400px;margin:auto;display:flex;gap:4px;padding:0 max(3vw,14px);overflow-x:auto;scrollbar-width:none}
 .tabs button{flex:none;border:0;border-radius:0;background:none;min-height:44px;padding:0 12px;color:var(--mute);font-weight:600;border-bottom:2px solid transparent}
 .tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--acc)}
-.tabs .tChat{display:none}.tabs .ti{display:none}
+.tabs .ti{display:none}
 .tabs.more{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 36px),transparent)}
 .alert{max-width:1400px;margin:12px auto 0;padding:0 max(3vw,14px);display:none}.alert.on{display:block}
 .alert div{padding:12px 16px;border-radius:10px;font-weight:600}.alert.bad div{background:var(--bad);color:#fff}.alert.warn div{background:var(--warn);color:#1a1200}
@@ -47,8 +47,6 @@ svg.i{width:18px;height:18px;flex:none}
 .note div{padding:11px 14px;border-radius:10px;background:var(--card);border:1px solid var(--line);font-size:14px}
 /* layout */
 .wrap{display:grid;gap:16px;padding:16px max(3vw,14px) 48px;grid-template-columns:minmax(0,1fr);max-width:1400px;margin:auto}
-@media(min-width:1000px){.wrap{grid-template-columns:minmax(0,1.6fr) minmax(340px,1fr)}.chat{position:sticky;top:62px;height:calc(100vh - 78px)}}
-@media(max-width:999px){.tabs .tChat{display:inline-flex}.chat{display:none!important}body[data-tab=chat] .chat{display:flex!important}body[data-tab=chat] .pane{display:none}}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px}
 .view{display:none}.view.on{display:block}
 .sec{padding:18px;margin-top:16px}.sec:first-child{margin-top:0}
@@ -93,17 +91,27 @@ td input.in{min-height:36px;padding:4px 8px;max-width:110px;text-align:right}
 .stat{padding:12px 14px;border-radius:12px;background:var(--soft)}.stat span{display:block;font-size:12.5px;color:var(--mute)}.stat b{font-size:28px}
 .big{font-size:clamp(44px,9vw,72px);line-height:1}
 /* chat */
-.chat{display:flex;flex-direction:column;min-height:520px;overflow:hidden}
-.chat header{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:8px}
-.chat header h2{font:700 20px "Barlow Condensed",sans-serif}
-.log{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;max-height:65vh}
+.fab{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));z-index:7;min-height:52px;padding:0 20px 0 16px;border-radius:99px;background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.22)}
+.fab:hover{background:var(--acc2)}.fab svg{width:20px;height:20px}body.chatOn .fab{display:none}
+.chat{position:fixed;z-index:8;right:16px;bottom:16px;width:min(400px,calc(100vw - 32px));height:min(600px,calc(100vh - 32px));display:none;flex-direction:column;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.28)}
+.chat.on{display:flex}.chat.lite{height:auto}
+#scrim{display:none}@media(max-width:600px){body.chatOn #scrim{display:block;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:7}}
+@media(prefers-reduced-motion:no-preference){.chat.on{animation:pop .2s ease-out}@keyframes pop{from{opacity:0;transform:translateY(14px)}}}
+.chat header{padding:10px 10px 10px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px}
+.chat header h2{font:700 19px "Barlow Condensed",sans-serif;margin-inline-end:auto}
+.chat header .icon{width:38px;min-height:38px;border:0;background:transparent}.chat header .icon:hover{background:var(--soft)}
+.log{flex:1;min-height:0;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px}
+.rep{margin:4px 0 0;display:grid;gap:8px}.rep textarea{width:100%;min-height:120px;font:12px/1.4 ui-monospace,monospace;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);padding:8px}
+@media(max-width:600px){.chat{left:0;right:0;bottom:0;width:100%;height:min(78vh,620px);border-radius:18px 18px 0 0}.fab{width:56px;min-height:56px;padding:0}.fab .fl{display:none}
+ :root[data-skin=clean] .fab{bottom:calc(84px + env(safe-area-inset-bottom))}}
+:root[data-skin=console] .fab{border-radius:4px;background-image:linear-gradient(#2f74e0,#1b5fcc)}
 @media(min-width:1000px){.log{max-height:none}}
-.m{padding:10px 14px;border-radius:14px;max-width:90%;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14.5px}
+.m{padding:9px 13px;border-radius:14px;max-width:88%;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.45}
 .m.u{align-self:flex-end;background:var(--acc);color:#fff;border-bottom-right-radius:4px}
 .m.a{align-self:flex-start;background:var(--soft);border-bottom-left-radius:4px}
 .m.sys{align-self:center;color:var(--mute);font-size:13px;text-align:center}
-.chips{display:flex;gap:8px;overflow-x:auto;padding:0 16px 10px;scrollbar-width:none}.chips button{flex:none;font-size:13px;min-height:34px;border-radius:99px}
-.ask{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--line)}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:0 14px 8px;scrollbar-width:none}.chips button{flex:none;font-size:13px;min-height:34px;border-radius:99px}
+.ask{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line)}
 .ask input{flex:1;font:16px Inter,sans-serif;min-height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
 .icon{width:44px;min-height:44px;padding:0}.icon.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 .hide{display:none!important}
@@ -127,6 +135,11 @@ td input.in{min-height:36px;padding:4px 8px;max-width:110px;text-align:right}
 .sw{display:flex;gap:10px;align-items:center;min-height:40px;font-size:14px;cursor:pointer}.sw input{width:20px;height:20px;accent-color:var(--acc);flex:none}
 .chipset{display:flex;flex-wrap:wrap;gap:6px}.chipset button{min-height:34px;border-radius:99px;font-size:13px;padding:0 12px}
 .chipset button[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:#fff}
+.hbars{display:flex;align-items:flex-end;gap:4px;height:120px;position:relative;padding-top:6px;border-bottom:1px solid var(--line)}
+.hbars i{flex:1;min-width:6px;border-radius:4px 4px 0 0;background:var(--acc);opacity:.85}.hbars i.warn{background:var(--warn)}.hbars i.bad{background:var(--bad)}
+.hbars .ln{position:absolute;left:0;right:0;border-top:1px dashed var(--bad);opacity:.7}.hbars .ln span{position:absolute;right:0;top:-17px;font-size:11px;color:var(--mute);background:var(--card);padding:0 4px}
+.drv{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;padding:10px 0;border-bottom:1px solid var(--line)}.drv:last-child{border-bottom:0}
+.drv b{font-weight:600}.drv .r{text-align:right;font-variant-numeric:tabular-nums}.drv .small{grid-column:1/-1}
 /* ===== SKINS ===== */
 .skinSel{font:500 14px Inter,sans-serif;min-height:40px;padding:0 10px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
 .ag svg{width:100%;height:auto;display:block;max-height:150px}
@@ -197,7 +210,6 @@ td input.in{min-height:36px;padding:4px 8px;max-width:110px;text-align:right}
   <button role="tab" data-t="health" aria-selected="false"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg>Health</button>
   <button role="tab" data-t="maint" aria-selected="false"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg>Maintenance</button>
   <button role="tab" data-t="trip" aria-selected="false"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h7a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h7"/></svg>Trip &amp; log</button>
-  <button role="tab" data-t="chat" aria-selected="false" class="tChat"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>Ask Claude</button>
  </nav></div>
 <div class="alert" id="alert" role="alert"><div id="alertT"></div></div>
 <div class="note" id="note"><div id="noteT"></div></div>
@@ -216,7 +228,7 @@ td input.in{min-height:36px;padding:4px 8px;max-width:110px;text-align:right}
     <ul class="codes" id="codes"><li><small>No codes read yet.</small></li></ul>
     <div id="ff"></div>
    </div>
-   <p class="help"><b>USB (OBDLink EX/SX):</b> on Android, connect through a USB-C OTG dongle, dismiss any “Open with” popup, and open this page in Chrome. On a computer use Chrome or Edge. <b>Bluetooth:</b> needs a Bluetooth LE adapter. If either is blocked inside Claude, use the standalone copy of this page; the Claude chat only works here.</p>
+   <p class="help"><b>Tip:</b> in Chrome’s menu, tap <b>Add to Home screen</b> to open this like an app, even without signal. <b>USB (OBDLink EX/SX):</b> on Android, connect through a USB-C OTG dongle, dismiss any “Open with” popup, and open this page in Chrome. On a computer use Chrome or Edge. <b>Bluetooth:</b> needs a Bluetooth LE adapter. If either is blocked inside Claude, use the standalone copy of this page; the Claude chat only works here.</p>
   </div>
   <!-- HEALTH -->
   <div class="view" id="v-health">
@@ -244,18 +256,22 @@ td input.in{min-height:36px;padding:4px 8px;max-width:110px;text-align:right}
     <div class="stats" id="stats"></div></div>
    <div class="card sec"><div class="hd"><div><h2>0–60 mph timer</h2><div class="sub">Arm it, come to a stop, then accelerate. Accuracy is about ±1 s on older cars, which answer slowly.</div></div><button id="b060" class="pri">Arm</button></div>
     <div class="row" style="align-items:baseline;gap:18px"><span class="big num" id="t060">—</span><span class="small" id="s060">Not armed</span></div></div>
+   <div class="card sec"><div class="hd"><div><h2>Drive history</h2><div class="sub">Each live drive is saved automatically, so you can spot trends over days. Kept in this browser.</div></div><button id="bHistClr">Clear history</button></div>
+    <div id="hist"></div></div>
    <div class="card sec"><div class="hd"><div><h2>Data log</h2><div class="sub" id="logSub">0 samples recorded</div></div>
      <div class="row"><button id="bSave">Save CSV</button><button id="bCopy">Copy CSV</button></div></div>
     <p class="small" style="margin:0">Every reading is recorded while connected (last 2 hours kept). Share the CSV with a shop, or import it again later.</p></div>
   </div>
  </section>
- <aside class="card chat">
-  <header><h2>Ask Claude</h2><button class="icon hide" id="bSpk" aria-label="Read answers aloud" title="Read answers aloud"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg></button></header>
+ </main>
+<div id="scrim"></div>
+<button class="fab" id="fab" aria-label="Ask Claude"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg><span class="fl">Ask Claude</span></button>
+ <aside class="card chat" id="chat" role="dialog" aria-label="Ask Claude">
+  <header><h2>Ask Claude</h2><button class="icon" id="bRep" aria-label="Copy a report for Claude" title="Copy a report for Claude"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button><button class="icon hide" id="bSpk" aria-label="Read answers aloud" title="Read answers aloud"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg></button><button class="icon" id="bChatX" aria-label="Close"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
   <div class="log" id="log"><div class="m a">Hi! I can see everything this monitor sees: live readings, trouble codes, health checks, your trip and your service log. Ask me anything about how the car is running.</div></div>
   <div class="chips" id="chips"></div>
   <form class="ask" id="ask"><button type="button" class="icon hide" id="bMic" aria-label="Talk"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button><input id="q" placeholder="Ask about your car…" autocomplete="off"><button class="pri" id="bSend">Send</button></form>
  </aside>
-</main>
 <div class="ov" id="set" role="dialog" aria-modal="true" aria-labelledby="setH"><div class="card sheet">
  <div class="hd"><h2 id="setH" style="font-size:20px">Settings</h2><button id="bSetX" aria-label="Close settings">Done</button></div>
  <h3 class="sh">Theme</h3><div class="skins" id="skins"></div>
@@ -274,6 +290,7 @@ td input.in{min-height:36px;padding:4px 8px;max-width:110px;text-align:right}
  <label class="sw"><input type="checkbox" data-c="vib"> Vibrate when coolant goes critical (Android)</label>
  <h3 class="sh">Connection</h3>
  <div class="sg"><label class="sr">OBD protocol<select class="in" data-c="proto"><option value="0">Automatic</option><option value="3">ISO 9141-2 (most 1996–2004 Subarus)</option><option value="4">ISO 14230 KWP, slow init</option><option value="5">ISO 14230 KWP, fast init</option><option value="6">CAN 11-bit 500k (2006+)</option></select></label></div>
+ <label class="sw"><input type="checkbox" data-c="autoUsb"> Connect to the USB adapter automatically when it’s plugged in or the app opens</label>
  <label class="sw"><input type="checkbox" data-c="fast"> Fast mode: only rpm, coolant, speed, load and airflow, for quicker updates</label>
  <p class="small" style="margin:4px 0 0">Protocol changes apply on the next connect. Picking ISO 9141-2 skips the auto-search and connects faster on your Outback.</p>
  <h3 class="sh">Fuel</h3>
@@ -283,7 +300,8 @@ td input.in{min-height:36px;padding:4px 8px;max-width:110px;text-align:right}
  <h3 class="sh">Screen</h3>
  <label class="sw"><input type="checkbox" data-c="awake"> Keep the screen on while showing live data</label><div class="small" id="awakeNote"></div>
  <h3 class="sh">Data</h3>
- <div class="row" style="justify-content:flex-start"><button id="cReset">Reset settings</button><button id="cClearM">Clear service history</button></div>
+ <label class="sw"><input type="checkbox" data-c="autoOdo"> Add each drive’s miles to the odometer</label>
+ <div class="row" style="justify-content:flex-start;margin-top:6px"><button id="cReset">Reset settings</button><button id="cClearM">Clear service history</button></div>
  <p class="small" style="margin:16px 0 0">Settings are saved in this browser.</p>
 </div></div>
 <div class="ov" id="ov"><div class="card"><p><b>Clear all trouble codes?</b><br>This turns off the check-engine light, but also resets the emissions readiness monitors and the fuel-trim learning. Write the codes down first if you need them.</p><div class="row"><button id="bNo">Cancel</button><button class="pri" id="bYes">Clear codes</button></div></div></div>
@@ -293,7 +311,7 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 let imperial=store.get('obd-units')!=='metric';
-const CFG0={dial1:'rpm',dial2:'ect',spark:true,hide:[],coolW:100,coolC:105,voltLow:12.8,redline:6000,sound:true,vib:true,proto:'0',fast:false,cal:100,price:3.5,awake:false};
+const CFG0={dial1:'rpm',dial2:'ect',spark:true,hide:[],coolW:100,coolC:105,voltLow:12.8,redline:6000,sound:true,vib:true,proto:'0',fast:false,cal:100,price:3.5,awake:false,autoUsb:true,autoOdo:true};
 let cfg={...CFG0};try{Object.assign(cfg,JSON.parse(store.get('obd-cfg')||'{}'))}catch(e){}
 const saveCfg=()=>store.set('obd-cfg',JSON.stringify(cfg));
 let skin=store.get('obd-skin')||'studio';document.documentElement.dataset.skin=skin;
@@ -520,7 +538,7 @@ function renderCodes(){const ul=$('#codes');
 function mark(k){for(const[id,v]of[['#bUsb','usb'],['#bConn','ble'],['#bDemo','demo'],['#lImp','log']])$(id).classList.toggle('pri',k===v)}
 function setSource(s,t){source=s;setTimeout(wake);if(s==='none')mark(null);else if(s!=='live')mark(s);$('#pill').className='pill '+s;$('#pillT').textContent=t;$('#bRead').disabled=$('#bClear').disabled=$('#bMon').disabled=!(s==='live'||s==='demo')}
 function note(t){$('#noteT').textContent=t;$('#note').classList.toggle('on',!!t)}
-function reset(){cur={};hist={};rows=[];codes=null;pending=[];mon=null;ff=null;trip={t0:null,last:null,km:0,fuelL:0,maxEct:null,maxRpm:0,topSpd:0};renderCodes()}
+function reset(){odoAdded=0;cur={};hist={};rows=[];codes=null;pending=[];mon=null;ff=null;trip={t0:null,last:null,km:0,fuelL:0,maxEct:null,maxRpm:0,topSpd:0};renderCodes()}
 
 /* ---------- demo ---------- */
 let demoT=null,tick=0;
@@ -536,7 +554,7 @@ function startDemo(){usbWanted=false;stopAll();reset();tick=0;setSource('demo','
  ff={code:'P0420',vals:{rpm:2240,ect:91,spd:96,load:41,stft1:2.3,ltft1:5.5}};renderCodes();
  const n=300,t0=Date.now()-n*600;for(let i=0;i<n;i++){demoStep();record(t0+i*600,true)}render();
  demoT=setInterval(()=>{demoStep();record()},600)}
-function stopAll(){clearInterval(demoT);demoT=null;link.on=false;const c=link.close;link.close=null;if(c)c()}
+function stopAll(){saveDrive();clearInterval(demoT);demoT=null;link.on=false;const c=link.close;link.close=null;if(c)c()}
 
 /* ---------- adapter link: BLE, USB (Web Serial on computers, WebUSB + FTDI on Android) ---------- */
 const SVCS=[0xfff0,0xffe0,0x18f0,'e7810a71-73ae-499d-8c15-faa9aef0c3f2'];
@@ -545,7 +563,7 @@ const enc=new TextEncoder(),dec=new TextDecoder();
 const err=(name,msg='')=>Object.assign(new Error(msg),{name});
 function feed(s){link.buf+=s;const i=link.buf.indexOf('>');if(i>=0){const r=link.buf.slice(0,i);link.buf='';link.wait&&link.wait(r)}}
 let usbWanted=false,connecting=false;const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-function lost(){if(!link.close)return;link.on=false;link.close=null;if(source==='live')setSource('none',usbWanted?'Disconnected · replug to reconnect':'Disconnected')}
+function lost(){if(!link.close)return;saveDrive();link.on=false;link.close=null;if(source==='live')setSource('none',usbWanted?'Disconnected · replug to reconnect':'Disconnected')}
 function raw(s,ms){return new Promise(res=>{const t=setTimeout(()=>{link.wait=null;link.buf='';res('TIMEOUT')},ms);
  link.wait=r=>{clearTimeout(t);link.wait=null;res(r.replace(/\r/g,'\n').trim())};
  Promise.resolve().then(()=>link.write(enc.encode(s+'\r'))).catch(()=>{clearTimeout(t);link.wait=null;res('ERROR')})})}
@@ -587,8 +605,8 @@ async function connect(kind,auto){if(connecting)return;connecting=true;
   link.sup=new Set();if(!supBits(await send('0100',12000),'4100',0))throw new Error('Adapter connected, but the car didn’t answer. Turn the key to ON (or start the engine) and try again.');
   if(link.sup.has('20'))supBits(await send('0120',4000),'4120',0x20);
   link.can=/[6-9AB]$/.test(clean(await send('ATDPN')));
-  reset();usbWanted=kind==='usb';setSource('live','Live · '+L.name);link.on=true;connecting=false;readMon();poll()}
- catch(e){connecting=false;stopAll();setSource('none','Not connected');if(e.name==='NotFoundError')return;const where=kind==='usb'?'USB':'Bluetooth';
+  reset();usbWanted=kind==='usb';if(usbWanted)store.set('obd-usb','1');setSource('live','Live · '+L.name);link.on=true;connecting=false;readMon();poll()}
+ catch(e){connecting=false;stopAll();setSource('none','Not connected');if(e.name==='NotFoundError'||(auto&&/Security|NotAllowed|Unsupported|Busy/.test(e.name)))return;const where=kind==='usb'?'USB':'Bluetooth';
   note(e.name==='Unsupported'?`${where} isn’t available in this browser. Use Chrome on Android or a computer, or import a CSV log instead.`
    :e.name==='SecurityError'||e.name==='NotAllowedError'?`This view blocked ${where} access. Open the standalone copy of this page in Chrome instead.`
    :e.name==='Busy'?'Another app is using the adapter. Close the OBDLink, FORScan or other OBD app (on Android, dismiss the “Open with” popup), unplug and replug the adapter, then try again.'
@@ -597,7 +615,7 @@ async function poll(){const keys=Object.keys(P).filter(k=>P[k].pid&&link.sup.has
  while(link.on){const t0=performance.now(),batch=[...fast,...(cfg.fast?[]:slow.slice(i,i+3))];i=i+3>=slow.length?0:i+3;if(!batch.length)await sleep(400);
   for(const k of batch){if(!link.on)return;const p=P[k],b=bytes(await send('01'+p.pid),'41'+p.pid,p.n||1);if(b){if(k==='fsys')cur.fsys=b[0];else push(k,p.f(...b))}}
   if(n++%6===0){const v=parseFloat(await send('ATRV'));if(v)push('volt',v)}record();const el=performance.now()-t0;if(el<120)await sleep(120-el)}}
-try{navigator.usb?.addEventListener('connect',e=>{if(usbWanted&&e.device.vendorId===0x0403&&source!=='live')setTimeout(()=>connect('usb',true),700)})}catch(e){}
+try{navigator.usb?.addEventListener('connect',e=>{if((usbWanted||autoOK())&&e.device.vendorId===0x0403&&(source==='none'))setTimeout(()=>connect('usb',true),700)})}catch(e){}
 const MONS=['Catalyst','Heated catalyst','EVAP','Secondary air','A/C refrigerant','O2 sensor','O2 heater','EGR'];
 async function readMon(){if(source==='demo'){renderHealth();return}const b=bytes(await send('0101'),'4101',4);if(!b)return;
  const list=[];['Misfire','Fuel system','Components'].forEach((n,i)=>{if(b[1]&(1<<i))list.push({n,s:b[1]&(16<<i)?'inc':'ok'})});
@@ -627,8 +645,8 @@ function importCSV(txt){const lines=txt.trim().split(/\r?\n/).map(l=>l.split(/[,
 /* ---------- tabs & buttons ---------- */
 let tab='dash';
 function setTab(t){tab=t;document.querySelector(`.tabs [data-t=${t}]`)?.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});document.body.dataset.tab=t;document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.t===t));
- document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+t||(t==='chat'&&false)));
- if(t==='health')renderHealth();if(t==='trip')renderTrip();if(t==='maint')renderMaint();try{if(t!=='chat')history.replaceState(null,'','#'+t)}catch(e){}}
+ document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+t));
+ if(t==='health')renderHealth();if(t==='trip'){renderTrip();renderHistory()}if(t==='maint')renderMaint();try{if(t!=='chat')history.replaceState(null,'','#'+t)}catch(e){}}
 const tabsEl=document.querySelector('.tabs'),tabHint=()=>tabsEl.classList.toggle('more',tabsEl.scrollLeft+tabsEl.clientWidth<tabsEl.scrollWidth-4);tabsEl.addEventListener('scroll',tabHint,{passive:true});addEventListener('resize',tabHint);setTimeout(tabHint);
 document.querySelector('.tabs').onclick=e=>{const b=e.target.closest('button');if(b)setTab(b.dataset.t)};
 $('#bConn').onclick=()=>{usbWanted=false;connect('ble')};$('#bUsb').onclick=()=>connect('usb');$('#bDemo').onclick=startDemo;
@@ -649,6 +667,7 @@ $('#set').addEventListener('change',e=>{const el=e.target,k=el.dataset.c;if(!k)r
 $('#cTiles').onclick=e=>{const b=e.target.closest('[data-tile]');if(!b)return;const k=b.dataset.tile;cfg.hide=cfg.hide.includes(k)?cfg.hide.filter(x=>x!==k):[...cfg.hide,k];saveCfg();fillCfg();render()};
 function twoStep(btn,label,fn){let armed=false,t;btn.onclick=()=>{if(!armed){armed=true;btn.textContent='Tap again to confirm';btn.classList.add('pri');t=setTimeout(()=>{armed=false;btn.textContent=label;btn.classList.remove('pri')},3000)}else{clearTimeout(t);armed=false;btn.textContent='Done ✓';btn.classList.remove('pri');fn();setTimeout(()=>btn.textContent=label,1500)}}}
 twoStep($('#cReset'),'Reset settings',()=>{cfg={...CFG0};saveCfg();imperial=true;store.set('obd-units','imperial');unitsLbl();setSkin('studio');wake();renderCodes()});
+twoStep($('#bHistClr'),'Clear history',()=>{drives=[];store.set('obd-drives','[]');renderHistory()});
 twoStep($('#cClearM'),'Clear service history',()=>{mlog={};store.set('obd-maint','{}');renderMaint()});
 const closeSet=()=>{$('#set').classList.remove('on');$('#bSet').focus()};
 $('#bSet').onclick=()=>{renderSet();$('#set').classList.add('on');$('#bSetX').focus()};$('#bSetX').onclick=closeSet;
@@ -665,7 +684,49 @@ $('#bSave').onclick=async()=>{if(!rows.length){note('Nothing recorded yet.');ret
  try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:'text/csv'}));a.download=name;a.click()}catch(e){note('Saving isn’t available here. Use Copy CSV instead.')}};
 $('#bCopy').onclick=()=>{if(!rows.length){note('Nothing recorded yet.');return}navigator.clipboard.writeText(csv()).then(()=>{$('#bCopy').textContent='Copied';setTimeout(()=>$('#bCopy').textContent='Copy CSV',1500)},()=>note('Copy was blocked by the browser.'))};
 
+/* ---------- drive history ---------- */
+let drives=[];try{drives=JSON.parse(store.get('obd-drives')||'[]')}catch(e){}
+let odoAdded=0;
+function saveDrive(){if(source!=='live'||!trip.t0||rows.length<30)return;
+ const warm=rows.filter(r=>r.ect>=80),tr=warm.filter(r=>r.ltft1!=null).map(r=>(r.stft1??0)+r.ltft1),vr=rows.filter(r=>r.volt!=null&&r.rpm>500).map(r=>r.volt);
+ const d={id:trip.t0,end:Date.now(),min:(Date.now()-trip.t0)/60000,km:trip.km,fuelL:trip.fuelL,maxEct:trip.maxEct,maxRpm:trip.maxRpm,trim:avg(tr),volt:avg(vr),codes:codes||[],flags:health().filter(h=>h.s==='warn'||h.s==='bad').map(h=>[h.s,h.t])};
+ const i=drives.findIndex(x=>x.id===d.id);if(i>=0)drives[i]=d;else drives.unshift(d);drives=drives.slice(0,60);store.set('obd-drives',JSON.stringify(drives));
+ if(cfg.autoOdo&&odo()!=null){const add=trip.km*0.621371-odoAdded;if(add>=0.1){const v=Math.round((odo()+add)*10)/10;$('#odo').value=v;store.set('obd-odo',String(v));odoAdded+=add;if(tab==='maint')renderMaint()}}
+ if(tab==='trip')renderHistory()}
+setInterval(saveDrive,60000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveDrive()});
+const fmtDay=t=>new Date(t).toLocaleString([],{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+function driveEcon(d){if(!(d.fuelL>0.01&&d.km>0.2))return'—';return imperial?(d.km*0.621371/(d.fuelL/3.785)).toFixed(1)+' mpg':(d.fuelL/d.km*100).toFixed(1)+' L/100km'}
+function renderHistory(){const box=$('#hist');if(!drives.length){box.innerHTML='<div class="small">No drives yet. They save automatically while you’re connected to the car.</div>';return}
+ const last=drives.slice(0,20).reverse(),lo=60,hi=125,pc=c=>Math.max(4,Math.min(100,(c-lo)/(hi-lo)*100)),lineAt=pc(cfg.coolC),ct=fmtT(cfg.coolC);
+ const bars=last.map(d=>{const m=d.maxEct??lo,t=fmtT(m),st=m>=cfg.coolC?'bad':m>=cfg.coolW?'warn':'';return`<i class="${st}" style="height:${pc(m).toFixed(1)}%" title="${esc(fmtDay(d.id))}: peak ${esc(t.t+t.u)}"></i>`}).join('');
+ box.innerHTML=`<div class="small" style="margin-bottom:6px">Peak coolant per drive (last ${last.length})</div><div class="hbars">${bars}<div class="ln" style="bottom:${lineAt.toFixed(1)}%"><span>critical ${esc(ct.t+ct.u)}</span></div></div>
+ <div style="margin-top:8px">${drives.slice(0,15).map(d=>{const t=d.maxEct!=null?fmtT(d.maxEct):null,dist=imperial?(d.km*0.621371).toFixed(1)+' mi':d.km.toFixed(1)+' km',bad=d.flags.filter(f=>f[0]==='bad').length,warn=d.flags.filter(f=>f[0]==='warn').length;
+  return`<div class="drv"><b>${esc(fmtDay(d.id))}</b><span class="r">${Math.round(d.min)} min · ${esc(dist)}</span><span class="small">${esc(driveEcon(d))} · peak coolant ${t?esc(t.t+t.u):'—'}${d.trim!=null?` · fuel trim ${d.trim>0?'+':''}${d.trim.toFixed(1)}%`:''}${d.codes.length?' · codes '+esc(d.codes.join(', ')):''}</span>${bad||warn?`<span class="small" style="color:${bad?'var(--bad)':'#b07a00'}">${esc(d.flags.map(f=>f[1]).join(', '))}</span>`:''}</div>`}).join('')}</div>`}
+
+/* ---------- report for Claude ---------- */
+function report(){const L=[],sn=snap();
+ L.push(`Outback OBD report, ${new Date().toLocaleString()}`,`Vehicle: ${$('#veh').value} (${$('#eng').selectedOptions[0].text})`,`Odometer: ${odo()??'not set'} mi`,`Owner notes: ${$('#notes').value||'none'}`,`Data source: ${source==='none'?'not connected':source}`);
+ if(Object.keys(sn).length)L.push('','Current readings:',...Object.entries(sn).map(([k,v])=>`- ${k}: ${v}`));
+ L.push('',`Trouble codes: ${codes==null?'not read':codes.length?codes.map(c=>`${c} (${DESC[c]||'see manual'})`).join(', '):'none'}${pending.length?` | pending: ${pending.join(', ')}`:''}`);
+ if(mon)L.push(`Check-engine light: ${mon.mil?'ON':'off'} | readiness not ready: ${mon.list.filter(m=>m.s==='inc').map(m=>m.n).join(', ')||'none'}`);
+ const H=health();if(H.length)L.push('','Health checks:',...H.map(h=>`- [${{ok:'OK',warn:'WARN',bad:'BAD',na:'--'}[h.s]}] ${h.t}: ${h.v}`));
+ if(trip.t0){renderTrip();L.push('','This trip:',...[...document.querySelectorAll('#stats .stat')].map(e=>`- ${e.firstChild.textContent}: ${e.querySelector('b').textContent} ${e.lastChild.textContent||''}`.trim()))}
+ if(drives.length)L.push('','Recent drives:',...drives.slice(0,10).map(d=>{const t=d.maxEct!=null?fmtT(d.maxEct):null;return`- ${fmtDay(d.id)}: ${Math.round(d.min)} min, ${(imperial?d.km*0.621371:d.km).toFixed(1)} ${imperial?'mi':'km'}, ${driveEcon(d)}, peak coolant ${t?t.t+t.u:'—'}${d.trim!=null?`, fuel trim ${d.trim.toFixed(1)}%`:''}${d.volt?`, ${d.volt.toFixed(1)} V`:''}${d.flags.length?`, flagged: ${d.flags.map(f=>f[1]).join('; ')}`:''}`}));
+ const due=maintState().filter(m=>m.s==='bad'||m.s==='warn');if(due.length)L.push('','Maintenance due:',...due.map(m=>`- ${m.n}: ${m.left<0?Math.round(-m.left)+' mi overdue':Math.round(m.left)+' mi left'}`));
+ return L.join('\n')}
+async function copyReport(btn){const txt=report();try{await navigator.clipboard.writeText(txt);if(btn){const o=btn.innerHTML;btn.textContent='Copied ✓';setTimeout(()=>btn.innerHTML=o,1600)}else bubble('sys','Report copied. Paste it into any Claude chat.')}
+ catch(e){const d=bubble('sys','Copy was blocked. Select the text below and copy it:');const ta=document.createElement('textarea');ta.value=txt;ta.readOnly=true;const w=document.createElement('div');w.className='rep';w.append(ta);d.append(w);ta.focus();ta.select()}}
+
+/* ---------- USB auto-connect ---------- */
+async function hasGranted(){try{if(/Android/i.test(navigator.userAgent)||!navigator.serial)return!!(await navigator.usb?.getDevices())?.some(d=>d.vendorId===0x0403);return(await navigator.serial.getPorts()).some(p=>p.getInfo().usbVendorId===0x0403)}catch(e){return false}}
+const autoOK=()=>cfg.autoUsb&&store.get('obd-usb')==='1';
+async function autoConnect(){if(autoOK()&&source==='none'&&!connecting&&await hasGranted())connect('usb',true)}
+
 /* ---------- Claude chat ---------- */
+function openChat(){$('#chat').classList.add('on');document.body.classList.add('chatOn');setTimeout(()=>{(sample?$('#q'):$('#bChatX')).focus();$('#log').scrollTop=1e9},30)}
+function closeChat(){$('#chat').classList.remove('on');document.body.classList.remove('chatOn');$('#fab').focus()}
+$('#fab').onclick=openChat;$('#scrim').onclick=closeChat;$('#bChatX').onclick=closeChat;$('#bRep').onclick=e=>copyReport(e.currentTarget);
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#chat').classList.contains('on')&&!$('#set').classList.contains('on'))closeChat()});
 let sample=null,tts=null,dict=null,speakOn=false,busy=false;const msgs=[];
 function snap(){const o={};for(const k in P)if(cur[k]!=null&&k!=='fsys'){const d=disp(k,cur[k]);o[P[k].label]=d.t+' '+d.u}if(cur.fsys!=null)o['Fuel system']=FSYS[cur.fsys]||cur.fsys;return o}
 function stats(){const o={};for(const k in P){const a=rows.map(r=>r[k]).filter(v=>v!=null);if(!a.length||k==='fsys')continue;const f=v=>disp(k,v).t;o[P[k].label]={unit:disp(k,a[0]).u,latest:f(a.at(-1)),min:f(Math.min(...a)),max:f(Math.max(...a)),avg:f(avg(a)),samples:a.length}}return o}
@@ -692,7 +753,7 @@ $('#chips').onclick=e=>{const b=e.target.closest('button');if(b)ask(b.textConten
 $('#bSpk').onclick=()=>{speakOn=!speakOn;$('#bSpk').classList.toggle('on',speakOn);if(!speakOn)tts?.stop()};
 let listening=false;
 $('#bMic').onclick=()=>{if(!dict)return;if(listening){dict.stop().then(()=>ask($('#q').value)).catch(()=>{});return}dict.start().catch(e=>{if(e?.code==='not_granted')$('#bMic').classList.add('hide')})};
-(async()=>{if(!window.claude?.use){const d=bubble('sys','Chat with Claude works on the Claude version of this app. Save a CSV in Trip & log, then import it there. ');const a=document.createElement('a');a.href='https://claude.ai/artifact/4q288GtL9g2tUiB2svdYT2';a.textContent='Open the Claude version';a.target='_blank';a.rel='noopener';a.style.color='var(--acc2)';d.append(a);$('#chips').classList.add('hide');return}
+(async()=>{if(!window.claude?.use){$('#log').innerHTML='';const d=bubble('a','Live chat works in the Claude version of this app. Here, tap below to copy a full report of your car (readings, codes, health checks and recent drives), then paste it into any Claude chat. ');const b=document.createElement('button');b.className='pri';b.style.cssText='margin-top:10px;width:100%';b.textContent='Copy report for Claude';b.onclick=()=>copyReport(b);d.append(document.createElement('br'),b);$('#ask').classList.add('hide');$('#chat').classList.add('lite');d.append(document.createElement('br'));const a=document.createElement('a');a.href='https://claude.ai/artifact/4q288GtL9g2tUiB2svdYT2';a.textContent='Open the Claude version';a.target='_blank';a.rel='noopener';a.style.color='var(--acc2)';d.append(a);$('#chips').classList.add('hide');return}
  const[s,t,d,w]=await Promise.all(['sample','tts','dictation','downloads'].map(n=>claude.use(n).catch(()=>null)));sample=s;tts=t;dict=d;dl=w;
  if(!s)bubble('sys','Chat with Claude isn’t available in this view.');if(t)$('#bSpk').classList.remove('hide');
  if(d){$('#bMic').classList.remove('hide');let base='';
@@ -700,6 +761,7 @@ $('#bMic').onclick=()=>{if(!dict)return;if(listening){dict.stop().then(()=>ask($
   d.onPartial(({text})=>{$('#q').value=base+text});d.onFinal(({text})=>{base+=text+' ';$('#q').value=base})}})();
 
 const h0=location.hash.slice(1);if(['dash','health','maint','trip'].includes(h0))setTab(h0);
-render();renderMaint();tint();
+render();renderMaint();tint();setTimeout(autoConnect,300);
+try{if(window.top===window&&location.protocol==='https:'&&!/claude/.test(location.hostname)){const l=document.createElement('link');l.rel='manifest';l.href='manifest.webmanifest';document.head.append(l);navigator.serviceWorker?.register('sw.js').catch(()=>{})}}catch(e){}
 }
 </script></body></html>
