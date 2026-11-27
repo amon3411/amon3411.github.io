@@ -75,7 +75,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;p
 .dot.ok{background:var(--ok)}.dot.warn{background:var(--warn)}.dot.bad{background:var(--bad)}
 .chk h3{font:600 15px Inter,sans-serif}.chk .st{font-size:13px;font-weight:600;white-space:nowrap}
 .chk .st.ok{color:var(--ok)}.chk .st.warn{color:#b07a00}.chk .st.bad{color:var(--bad)}
-:root[data-theme=dark] .chk .st.warn{color:var(--warn)}@media(prefers-color-scheme:dark){:root:not([data-theme=light]) .chk .st.warn{color:var(--warn)}}
+:root[data-theme=dark]:not([data-skin=console]):not([data-skin=clean]) :is(.chk .st.warn,.due.warn),:root[data-skin=analog] :is(.chk .st.warn,.due.warn),:root[data-skin=tiles] :is(.chk .st.warn,.due.warn){color:var(--warn)}@media(prefers-color-scheme:dark){:root:not([data-theme=light]):not([data-skin=console]):not([data-skin=clean]) :is(.chk .st.warn,.due.warn){color:var(--warn)}}
 @media(max-width:600px){.chk{grid-template-columns:auto minmax(0,1fr)}.chk .st{grid-column:2;white-space:normal}}.chk p{grid-column:2/-1;margin:0;font-size:14px}.chk details{grid-column:2/-1;font-size:13.5px;color:var(--mute)}.chk summary{cursor:pointer;color:var(--ink);font-weight:500}
 .mons{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}
 .mon .small{white-space:nowrap}.mon{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:9px;background:var(--soft);font-size:13.5px}
@@ -117,7 +117,7 @@ td input.in{min-height:36px;padding:4px 8px;max-width:110px;text-align:right}
 .sh{font:600 13px Inter,sans-serif;color:var(--mute);margin:18px 0 8px}
 .skins{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
 .sk{display:block;text-align:left;height:auto;min-height:0;padding:10px;border-radius:12px;white-space:normal}
-.sk[aria-pressed=true]{outline:2px solid var(--acc);outline-offset:1px}
+.sk[aria-pressed=true]{border-color:var(--acc);box-shadow:inset 0 0 0 1px var(--acc)}
 .sk .pv{height:54px;border-radius:8px;margin-bottom:8px;display:flex;align-items:flex-end;gap:5px;padding:7px;border:1px solid rgba(128,128,128,.25)}
 .sk .pv i{flex:1;border-radius:4px;height:60%}.sk b{display:block;font-size:14px}.sk small{display:block;color:var(--mute);font-size:12px;line-height:1.35;margin-top:2px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;flex-wrap:wrap}.seg button{border:0;border-radius:0}.seg button[aria-pressed=true]{background:var(--acc);color:#fff}
@@ -151,8 +151,11 @@ td input.in{min-height:36px;padding:4px 8px;max-width:110px;text-align:right}
 :root[data-skin=console]{color-scheme:light;--bg:#ececec;--card:#fff;--ink:#141414;--mute:#585858;--line:#bdbdbd;--soft:#f2f4f7;--acc:#1b5fcc;--acc2:#154ea8;--ok:#1a7f37}
 :root[data-skin=console] body{font:13px/1.45 "Segoe UI",Tahoma,Inter,sans-serif}
 :root[data-skin=console] .card,:root[data-skin=console] button,:root[data-skin=console] .btn,:root[data-skin=console] .skinSel,:root[data-skin=console] .in,:root[data-skin=console] .codes li,:root[data-skin=console] .chk,:root[data-skin=console] .mon,:root[data-skin=console] .stat,:root[data-skin=console] .tip,:root[data-skin=console] .m{border-radius:2px}
-:root[data-skin=console] button,:root[data-skin=console] .btn{background:linear-gradient(#fdfdfd,#e4e4e4);border-color:#a9a9a9;min-height:34px;font-size:13px}
-:root[data-skin=console] .pri{background:linear-gradient(#2f74e0,#1b5fcc);color:#fff;border-color:#174ea6}
+:root[data-skin=console] button,:root[data-skin=console] .btn{background-color:#f3f3f3;background-image:linear-gradient(#fdfdfd,#e4e4e4);border-color:#a9a9a9;min-height:34px;font-size:13px}
+:root[data-skin=console] .pri{background-image:linear-gradient(#2f74e0,#1b5fcc);color:#fff;border-color:#174ea6}
+:root[data-skin=console] button[aria-pressed=true],:root[data-skin=console] .icon.on{background-image:linear-gradient(#2f74e0,#1b5fcc);border-color:#174ea6;color:#fff}
+:root[data-skin=console] .sk{background-image:none;background-color:var(--card)}:root[data-skin=console] .sk[aria-pressed=true]{background-image:none;background-color:#eaf1fc;color:var(--ink);border-color:var(--acc)}
+:root[data-skin=console] .seg{border-radius:2px}:root[data-skin=console] .chipset button{border-radius:2px}
 :root[data-skin=console] .bar,:root[data-skin=console] .tabsWrap{background:linear-gradient(#fafafa,#e2e2e2)}
 :root[data-skin=console] .tabs{gap:2px;padding-top:4px}
 :root[data-skin=console] .tabs button{border:1px solid #bdbdbd;border-bottom:0;background:#e1e1e1;min-height:32px;border-radius:3px 3px 0 0;color:#333;font-weight:500}
@@ -163,7 +166,7 @@ td input.in{min-height:36px;padding:4px 8px;max-width:110px;text-align:right}
 /* Clean: white & blue phone app */
 :root[data-skin=clean]{color-scheme:light;--bg:#f4f6f9;--card:#fff;--ink:#1a2330;--mute:#6a7686;--line:#e4e9ef;--soft:#eef3f8;--acc:#1570e8;--acc2:#0f5cc4}
 :root[data-skin=clean] .card{border:0;border-radius:20px;box-shadow:0 2px 10px rgba(20,40,70,.07)}
-:root[data-skin=clean] button,:root[data-skin=clean] .btn,:root[data-skin=clean] .skinSel{border-radius:99px}
+:root[data-skin=clean] button,:root[data-skin=clean] .btn{border-radius:99px}:root[data-skin=clean] .sk{border-radius:16px}:root[data-skin=clean] .tabs button{border-radius:0}:root[data-skin=clean] .seg{border-radius:99px}:root[data-skin=clean] .mt button{border-radius:10px}
 :root[data-skin=clean] .tile .v{color:var(--acc)}:root[data-skin=clean] .tabsWrap{border-bottom:0;box-shadow:0 1px 8px rgba(20,40,70,.06)}
 @media(max-width:600px){:root[data-skin=clean] .tabsWrap{position:static;border:0}:root[data-skin=clean] .tabs{position:fixed;bottom:0;left:0;right:0;background:var(--card);box-shadow:0 -2px 12px rgba(20,40,70,.08);justify-content:space-around;padding:0 4px env(safe-area-inset-bottom);z-index:6}
  :root[data-skin=clean] .tabs{-webkit-mask-image:none;mask-image:none}:root[data-skin=clean] .tabs button{flex:1 1 0;min-width:0;padding:6px 2px 4px;min-height:58px;flex-direction:column;gap:3px;border-radius:0;border-bottom:0;border-top:3px solid transparent;font-size:11px;overflow:hidden;text-overflow:ellipsis}:root[data-skin=clean] .tabs .ti{display:block;width:21px;height:21px}:root[data-skin=clean] .tabs button[aria-selected=true]{border-top-color:var(--acc);color:var(--acc)}:root[data-skin=clean] body{padding-bottom:76px}}
